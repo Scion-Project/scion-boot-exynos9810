@@ -30,18 +30,32 @@
                                              * verify against exynos-regs-pmu.h */
 
 /*
- * TODO(starlte): set the console UART base. Samsung "exynos4210"-compatible
- * serial. Pull the exact base for the console port from the vendor DT
- * (chosen/stdout-path -> serial_N -> reg). Do NOT guess.
+ * CONFIRMED from vendor DT (exynos9810-crownlte, same SoC as starlte):
+ *   ecduart = uart0 = uart@10440000, compatible "samsung,exynos-uart".
+ * This is the early-console debug UART — the one muxed out over USB-C UART.
+ * reg = <0x10440000 0x100>, fifo-size 0x100, IRQ SPI 0x18d.
+ *
+ * NOTE: it is a USI-wrapped UART (samsung,usi-serial-v2). The USI block must
+ * be in UART mode for the port to work. The stock bootloader already puts it
+ * there, so the poll-TX-and-write path in uart.c works as-is on a warm handoff.
+ * If you ever cold-init from the USI block, you must set USI mode first — the
+ * USI config register is adjacent; pull its offset from the usi node before
+ * touching it (left out here rather than guessed).
  */
-#define UART_BASE       0xDEAD0000UL   /* PLACEHOLDER — replace from DT */
+#define UART_BASE       0x10440000UL   /* confirmed: uart0 / ecduart */
+
+/* MUIC (for forcing the USB-C UART path if the handoff didn't leave it set):
+ * CONFIRMED: max77705 @ i2c 0x66 on hsi2c@14360000. */
+#define MUIC_I2C_BASE   0x14360000UL   /* confirmed: hsi2c@14360000 */
+#define MUIC_I2C_ADDR   0x66
 
 /*
- * TODO(starlte): CMU (clock management unit) bases for the console UART path
- * and the DRAM path. From the vendor DT 'clock-controller@...' nodes.
+ * TODO(starlte): CMU (clock management unit) bases for the DRAM path. The
+ * console UART comes up on the clock the stock bootloader already left running
+ * (gate_uart0), so you only need the CMU for DRAM/other peripherals. From the
+ * vendor DT 'clock-controller@...' nodes.
  */
-#define CMU_TOP_BASE    0xDEAD0001UL   /* PLACEHOLDER */
-#define CMU_PERIC_BASE  0xDEAD0002UL   /* PLACEHOLDER */
+#define CMU_TOP_BASE    0xDEAD0001UL   /* PLACEHOLDER (DRAM path only) */
 
 /*
  * TODO(starlte): DREX / DMC (DRAM controller) bases + PHY. The big one.
