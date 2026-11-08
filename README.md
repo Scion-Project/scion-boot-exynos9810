@@ -1,6 +1,6 @@
-# scion-boot-starlte
+# scion-boot-exynos9810
 
-A minimal **first-stage AArch64 bootloader skeleton** for the Samsung Galaxy S9
+A minimal **first-stage AArch64 bootloader skeleton** for Exynos 9810 phones, starting with the Samsung Galaxy S9
 (`starlte`, Exynos 9810). This is the stage that runs with your own code already
 in control at EL3: it brings up the lowest-level machine state, then hands off to
 a second-stage loader (splash / boot menu / XNU or Linux handoff).
