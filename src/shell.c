@@ -84,6 +84,10 @@ static void cmd_help(void)
 	      "  info                     Display scion_boot_info & memory map\n"
 	      "  safety                   Show brick-proof protection & button status\n"
 	      "  regs                     Dump AArch64 control & ID registers\n"
+	      "  fbtest                   Render color bars on the framebuffer\n"
+	      "  muic                     Probe MAX77705 MUIC over HSI2C\n"
+	      "  i2cread <bus> <adr> <rg> Read 8-bit register over Exynos HSI2C\n"
+	      "  loadx [addr] [max_len]   Receive binary over UART via XMODEM-CRC\n"
 	      "  md32 <addr> [count]      Dump 32-bit words\n"
 	      "  md64 <addr> [count]      Dump 64-bit words\n"
 	      "  hexdump <addr> [bytes]   Hex + ASCII memory dump\n"
@@ -107,6 +111,9 @@ static void cmd_info(const struct scion_boot_info *bi)
 	kprintf("Exception Lv : booted at EL%u, current EL%u\n",
 	        bi->entry_el, current_el());
 	kprintf("UART Base    : %p\n", (void *)bi->uart_base);
+	kprintf("Framebuffer  : %p (%ux%ux%u stride=%u)\n",
+	        (void *)bi->fb_base, bi->fb_width, bi->fb_height,
+	        bi->fb_bpp, bi->fb_stride);
 	kprintf("Spin-Table   : %p (parked secondaries: %u)\n",
 	        (void *)bi->cpu_release_addr, psci_secondary_count());
 	kprintf("Timer Freq   : %lu Hz (ticks=%lu)\n",
@@ -190,6 +197,39 @@ void shell_run(struct scion_boot_info *bi)
 			platform_print_safety_status();
 		} else if (strcmp(argv[0], "regs") == 0) {
 			cmd_regs();
+		} else if (strcmp(argv[0], "fbtest") == 0) {
+			display_test_pattern();
+		} else if (strcmp(argv[0], "muic") == 0) {
+			muic_init_and_probe();
+		} else if (strcmp(argv[0], "i2cread") == 0 && argc >= 4) {
+			uint64_t bus, chip, reg;
+			uint8_t val = 0;
+			if (parse_u64(argv[1], &bus) == 0 &&
+			    parse_u64(argv[2], &chip) == 0 &&
+			    parse_u64(argv[3], &reg) == 0) {
+				if (hsi2c_read_reg(bus, (uint8_t)chip, (uint8_t)reg, &val) == 0)
+					kprintf("i2c[0x%lx @ 0x%02x reg 0x%02x] = 0x%02x\n",
+					        bus, (unsigned)chip, (unsigned)reg, val);
+				else
+					kputs("i2cread: NACK or timeout\n");
+			}
+		} else if (strcmp(argv[0], "loadx") == 0) {
+			uint64_t addr = (uint64_t)(uintptr_t)__image_end + 0x100000ULL;
+			uint64_t max_len = 4 * 1024 * 1024;
+			if (argc >= 2)
+				(void)parse_u64(argv[1], &addr);
+			if (argc >= 3)
+				(void)parse_u64(argv[2], &max_len);
+			kprintf("Ready for XMODEM-CRC transfer into %p (max %lu bytes)...\n",
+			        (void *)addr, max_len);
+			long rcvd = xmodem_receive((void *)(uintptr_t)addr, (size_t)max_len);
+			if (rcvd > 0) {
+				kprintf("\nReceived %ld bytes at %p (crc32=0x%08x)\n",
+				        rcvd, (void *)addr,
+				        crc32((const void *)(uintptr_t)addr, (size_t)rcvd));
+			} else {
+				kprintf("\nXMODEM transfer failed (rc=%ld)\n", rcvd);
+			}
 		} else if (strcmp(argv[0], "usbdl") == 0 || strcmp(argv[0], "dnw") == 0) {
 			platform_enter_usbdl("Operator 'usbdl' console command");
 		} else if (strcmp(argv[0], "boot") == 0 || strcmp(argv[0], "continue") == 0) {

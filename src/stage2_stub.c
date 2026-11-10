@@ -25,8 +25,12 @@ void stage2_stub(struct scion_boot_info *bi)
 	platform_bootguard_clear();
 	platform_wdt_disable();
 
-	kprintf("stage2: ok. uart=%p timebase=%lu Hz flags=0x%x (EL%u -> EL%u)\n",
-	        (void *)bi->uart_base, bi->timebase_hz, bi->boot_flags,
+	display_puts("Stage 2      : Hand-off verified at EL2\n");
+
+	kprintf("stage2: ok. uart=%p fb=%p (%ux%ux%u) timebase=%lu Hz flags=0x%x (EL%u -> EL%u)\n",
+	        (void *)bi->uart_base, (void *)bi->fb_base,
+	        bi->fb_width, bi->fb_height, bi->fb_bpp,
+	        bi->timebase_hz, bi->boot_flags,
 	        bi->entry_el, el);
 	kprintf("stage2: %u memory region(s):\n", bi->nr_mem);
 	for (unsigned i = 0; i < bi->nr_mem; i++) {

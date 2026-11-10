@@ -39,11 +39,14 @@ SRCS := src/start.S \
         src/main.c \
         src/exceptions.c \
         src/loader.c \
+        src/xmodem.c \
         src/shell.c \
         src/stage2_stub.c \
         src/platform/uart.c \
         src/platform/clock.c \
         src/platform/dram.c \
+        src/platform/display.c \
+        src/platform/i2c.c \
         src/platform/timer.c \
         src/platform/wdt.c \
         src/platform/safety.c \
@@ -54,14 +57,18 @@ SRCS := src/start.S \
 BUILD := build/$(PLATFORM)
 ELF   := $(BUILD)/scion-boot.elf
 BIN   := $(BUILD)/scion-boot.bin
+SCN2  := $(BUILD)/scion-boot.scn2
 
-all: $(BIN)
+all: $(BIN) $(SCN2)
 
 $(ELF): $(SRCS) linker/stage1.ld | $(BUILD)
 	$(CC) $(CFLAGS) $(LDFLAGS) $(SRCS) -o $@
 
 $(BIN): $(ELF)
 	$(OBJCOPY) -O binary $< $@
+
+$(SCN2): $(BIN) tools/mkstage2.py
+	python3 tools/mkstage2.py -i $(BIN) -o $@ -n "scion-boot-$(PLATFORM)"
 
 $(BUILD):
 	mkdir -p $(BUILD)

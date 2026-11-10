@@ -88,6 +88,7 @@ void stage1_main(void)
 	 * and the PMU_INFORM1 boot-loop deadman counter. */
 	int force_shell = platform_bootguard_check(&bi);
 
+	muic_init_and_probe();
 	platform_clock_init();
 
 	if (platform_dram_init(&bi) != 0) {
@@ -96,6 +97,7 @@ void stage1_main(void)
 	}
 
 	psci_init(&bi);
+	display_init(&bi);
 
 	if (force_shell) {
 		shell_run(&bi);

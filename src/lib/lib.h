@@ -66,6 +66,19 @@ int platform_dram_init(struct scion_boot_info *bi);
 int dram_walk_test(uint64_t base, uint64_t size);
 int boot_mem_add(struct scion_boot_info *bi, uint64_t base, uint64_t size, uint32_t flags);
 
+/* Display / DECON0 framebuffer & on-screen console (src/platform/display.c) */
+void display_init(struct scion_boot_info *bi);
+void display_puts(const char *s);
+void display_alert(const char *title, const char *detail);
+void display_test_pattern(void);
+
+/* HSI2C & MAX77705 MUIC (src/platform/i2c.c) */
+int  hsi2c_read_reg(uint64_t bus_base, uint8_t chip_addr, uint8_t reg, uint8_t *val_out);
+void muic_init_and_probe(void);
+
+/* UART XMODEM-CRC receiver (src/xmodem.c) */
+long xmodem_receive(void *dst, size_t max_len);
+
 /* PSCI & Secondary cores (src/psci/psci.c) */
 void     psci_init(struct scion_boot_info *bi);
 int      psci_cpu_on(uint32_t cpu_id, uint64_t entry_pa);
