@@ -133,7 +133,7 @@ void platform_enter_usbdl(const char *reason)
 	kputs("\n============================================================\n");
 	kprintf("RECOVERY MODE — Exynos USB Download (usbdl / 04e8:1234 DNW)\n");
 	kprintf("Reason: %s\n", reason ? reason : "operator request");
-	kputs("Recover with:\n");
+	kputs("Recover with (created by Umer Uddin / @halal-beef & @Robotix22):\n");
 	kputs("  - Hubble : https://github.com/halal-beef/hubble\n");
 	kputs("             python3 hubble.py -b <STOCK_BL_TAR>\n");
 	kputs("  - Houston: https://github.com/halal-beef/houston-pub\n");

@@ -68,3 +68,9 @@ Toolchain: auto-detects `aarch64-none-elf-gcc`, `aarch64-linux-gnu-gcc`, or LLVM
 6. `include/boot.h` — lock the hand-off ABI with your stage 2.
 
 Each file has a header comment describing exactly what "done" looks like.
+
+## Credits & Acknowledgements
+
+- **Umer Uddin ([@halal-beef](https://github.com/halal-beef))** — Original creator of [Hubble](https://github.com/halal-beef/hubble) and [Houston](https://github.com/halal-beef/houston-pub) (`<umer.uddin@mentallysanemainliners.org>`), whose Exynos BootROM USB Download Mode (`usbdl` / `04e8:1234` DNW) recovery architecture makes unbricking Exynos devices possible.
+- **[@Robotix22](https://github.com/Robotix22)** — Creator of [open-mini-bl1](https://github.com/Robotix22/open-mini-bl1) and contributor of Exynos 9810 (`starlte`) BootROM/IRAM recovery support in Hubble and Houston.
+- **[@VDavid003](https://github.com/VDavid003)** — Creator of [exynos-usbdl](https://github.com/VDavid003/exynos-usbdl) and contributor to Exynos BootROM recovery research.

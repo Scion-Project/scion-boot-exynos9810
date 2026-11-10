@@ -41,3 +41,9 @@ When the device is in `usbdl` mode (`ID 04e8:1234 Samsung Electronics Co., Ltd`)
   ```
   Hubble streams the split `sboot.bin` sections (`fwbl1.bin`, `bl31.bin`, `bl2.bin`, `u-boot.bin`, `el3_mon.bin`) over DNW (`04e8:1234`) to bring the device directly into Odin Download Mode so stock firmware can be reflashed.
 - **[halal-beef/houston-pub](https://github.com/halal-beef/houston-pub)** — Exynos BootROM USB tool for uploading and testing payloads in `usbdl` mode.
+
+## 4. Credits
+
+- **Umer Uddin ([@halal-beef](https://github.com/halal-beef))** (`<umer.uddin@mentallysanemainliners.org>`) — Original creator and author of [Hubble](https://github.com/halal-beef/hubble) and [Houston](https://github.com/halal-beef/houston-pub).
+- **[@Robotix22](https://github.com/Robotix22)** — Creator of [open-mini-bl1](https://github.com/Robotix22/open-mini-bl1) and Exynos 9810 (`starlte`) BootROM/IRAM documentation & Hubble/Houston support.
+- **[@VDavid003](https://github.com/VDavid003)** — Creator of [exynos-usbdl](https://github.com/VDavid003/exynos-usbdl) and Exynos recovery research contributor.

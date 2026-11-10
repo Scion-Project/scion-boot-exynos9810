@@ -86,7 +86,11 @@ static inline void mmio_clrbits32(uint64_t a, uint32_t clr)
 
 /* -------------------------------------------------------------------------
  * Exynos 9810 BootROM (IROM) & IRAM (0x02020000) USB Download Mode (usbdl)
- * Compatible with halal-beef/hubble & halal-beef/houston-pub (04e8:1234 DNW)
+ * Compatible with halal-beef/hubble & halal-beef/houston-pub (04e8:1234 DNW).
+ *
+ * Credits:
+ *   - Umer Uddin (@halal-beef) — creator of Hubble & Houston
+ *   - @Robotix22 — Exynos 9810 (starlte) IROM/IRAM research (open-mini-bl1)
  * ------------------------------------------------------------------------- */
 #define EXYNOS9810_IROM_BASE       0x00000000UL
 #define EXYNOS9810_IROM_SIZE       0x00020000UL
