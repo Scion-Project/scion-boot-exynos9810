@@ -6,20 +6,29 @@
 ENTRY(_start)
 
 LOAD_ADDR = DEFINED(LOAD_ADDR) ? LOAD_ADDR : 0x40080000;
-STACK_SIZE = 0x4000;
+STACK_SIZE = 0x8000;
 
 SECTIONS
 {
 	. = LOAD_ADDR;
-	.text : { KEEP(*(.text.boot)) *(.text*) }
-	.rodata : { *(.rodata*) }
-	.data : { *(.data*) }
+	__image_start = .;
+	.text : {
+		KEEP(*(.text.boot))
+		. = ALIGN(0x800);
+		KEEP(*(.text.vectors))
+		*(.text*)
+	}
+	.rodata : ALIGN(16) { *(.rodata*) }
+	.data : ALIGN(16) { *(.data*) }
 	. = ALIGN(16);
 	__bss_start = .;
 	.bss : { *(.bss*) *(COMMON) }
 	__bss_end = .;
 	. = ALIGN(16);
+	__stack_bottom = .;
 	. = . + STACK_SIZE;
 	__stack_top = .;
+	. = ALIGN(4096);
+	__image_end = .;
 	/DISCARD/ : { *(.comment) *(.note*) }
 }

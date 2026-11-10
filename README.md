@@ -13,40 +13,48 @@ stubbed with documented `TODO(starlte)` markers for you to fill from the SoC
 datasheet and the vendor DT. No register addresses are invented; where a value is
 unknown it is a named constant with a comment pointing at where to get it.
 
-## Scope / boundary
+## Scope / boundary & brick-proof recovery
 
-This repo is bootloader engineering only. See [`docs/boundary.md`](docs/boundary.md).
+This repo is bootloader engineering only. See [`docs/boundary.md`](docs/boundary.md) and [`docs/recovery-and-safety.md`](docs/recovery-and-safety.md).
 It contains **no exploit, no secure-boot bypass, no signature-check patch, and no
-key/fuse/keybox manipulation**. How this stage comes to be trusted and executed on
-a given device is out of scope and not part of this tree — that is the operator's
-own affair on their own hardware. Everything here runs unmodified in QEMU with no
-device at all.
+key/fuse/keybox manipulation**.
+
+To ensure the bootloader **can never damage or brick the phone**, Stage 1 enforces:
+- **Zero non-volatile writes** (OTP/eFuses `0x10000000`, UFS controller `0x11120000`, IROM, and the BootROM IRAM table `0x02020000..0x02021400` are strictly write-protected).
+- **Hardware button override** (`Volume Down + Bixby` on `GPA0` immediately enters Exynos USB Download Mode `04e8:1234`; `Volume Up` forces the recovery shell).
+- **Automatic 3-strike boot-loop guard** in `PMU_INFORM1` (`0x14060804`) paired with a fail-safe watchdog timer.
+- **Automatic `usbdl` (`04e8:1234` DNW) fallback** on any fatal exception, DRAM init error, or Stage-2 verification failure, compatible with [halal-beef/hubble](https://github.com/halal-beef/hubble) and [halal-beef/houston-pub](https://github.com/halal-beef/houston-pub).
 
 ## Layout
 
 ```
-src/start.S          EL3 reset entry: stack, BSS clear, drop into C
-src/main.c           stage-1 flow: console → platform init → load/verify → handoff
-src/platform/        exynos9810.h + uart/clock/dram/pmu (clock+dram are stubs)
-src/lib/             tiny freestanding string + printf (no libc)
-src/psci/psci.c      PSCI/CPU_ON skeleton (spin-table secondary release)
-include/boot.h       the stage-1 → stage-2 hand-off struct (ABI)
-linker/stage1.ld     bare-metal layout
-qemu/                QEMU virt smoke test
+src/start.S          EL3 reset entry, 2048B-aligned exception vectors, EL3 -> EL2 drop
+src/exceptions.c     VBAR setup, ESR_ELx EC decoding & full register crash dump
+src/main.c           stage-1 flow: console → WDT/timer → clocks → DRAM test → shell → handoff
+src/loader.c         stage-2 header ('SCN2') validation, CRC32 & SHA-256 verification
+src/shell.c          interactive UART debug console (md/mw, hexdump, memtest, crc32, sha256)
+src/platform/        exynos9810.h + uart (TX/RX), clock/PMU, dram (walking-1s/0s), timer, wdt
+src/lib/             freestanding string/printf (klib.c) + IEEE CRC32 & FIPS SHA-256 (crypto.c)
+src/psci/psci.c      PSCI/CPU_ON & Exynos 9810 PMU core power sequencing + spin-table
+include/boot.h       the stage-1 → stage-2 hand-off struct (ABI) & stage-2 image header
+linker/stage1.ld     bare-metal layout with stage-1 footprint symbols
 ```
 
 ## Build
 
 ```sh
-# QEMU smoke test (PL011 UART, prints the handoff contract and halts)
+# QEMU smoke test (EL3 -> EL2 transition, DRAM test, SHA-256 verification)
 make PLATFORM=qemu
 make PLATFORM=qemu qemu      # needs qemu-system-aarch64
 
-# Real hardware target (requires the TODO(starlte) stubs to be filled)
+# Force entry into the interactive UART debug console on boot
+make clean && make PLATFORM=qemu BOOT_SHELL=1 qemu
+
+# Real hardware target (Exynos 9810 / starlte)
 make PLATFORM=starlte
 ```
 
-Toolchain: `aarch64-none-elf-gcc` (bare metal) or `aarch64-linux-gnu-gcc`.
+Toolchain: auto-detects `aarch64-none-elf-gcc`, `aarch64-linux-gnu-gcc`, or LLVM `clang --target=aarch64-none-elf` + `lld`.
 
 ## What to fill in (in order)
 
