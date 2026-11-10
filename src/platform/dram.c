@@ -164,23 +164,44 @@ int dram_walk_test(uint64_t base, uint64_t size)
 	return 0;
 }
 
+#ifdef PLATFORM_STARLTE
+static int starlte_mif_clocks_ready(void)
+{
+	static const uint64_t mif_bases[4] = {
+		CMU_MIF0_BASE, CMU_MIF1_BASE, CMU_MIF2_BASE, CMU_MIF3_BASE
+	};
+	for (unsigned i = 0; i < 4; i++) {
+		uint32_t con0 = mmio_r32(mif_bases[i] + CMU_PLL_CON0);
+		if (!(con0 & CMU_PLL_CON0_STABLE))
+			return 0;
+	}
+	return 1;
+}
+#endif
+
 int platform_dram_init(struct scion_boot_info *bi)
 {
 	uint64_t s1_start = (uint64_t)(uintptr_t)__image_start;
 	uint64_t s1_size  = (uint64_t)(uintptr_t)(__image_end - __image_start);
 
 #ifdef PLATFORM_STARLTE
-	if (IS_PLACEHOLDER(DMC0_BASE) || IS_PLACEHOLDER(DMC_PHY0_BASE)) {
-		kprintf("dram: TODO(starlte) controller/PHY bases unset — refusing\n");
-		kprintf("dram: fill DMC0_BASE/DMC_PHY0_BASE and the training seq\n");
+	int mif_ready = starlte_mif_clocks_ready();
+	if (!mif_ready && (IS_PLACEHOLDER(DMC0_BASE) || IS_PLACEHOLDER(DMC_PHY0_BASE))) {
+		kprintf("dram: MIF PLLs unlocked and cold DMC0_BASE unset — refusing\n");
+		kprintf("dram: load bl2.bin first via Hubble/Houston or fill DMC0_BASE\n");
 		return -1;
 	}
 	boot_mem_add(bi, STARLTE_DRAM_BASE, STARLTE_DRAM_SIZE, SCION_MEM_RAM);
 	boot_mem_add(bi, s1_start, s1_size, SCION_MEM_RESERVED | SCION_MEM_STAGE1);
+
+	uint64_t t0 = timer_get_ticks();
 	if (dram_walk_test(STARLTE_DRAM_BASE, STARLTE_DRAM_SIZE) != 0)
 		return -1;
+	uint64_t dt_us = timer_ticks_to_us(timer_get_ticks() - t0);
+
 	bi->boot_flags |= SCION_BF_DRAM_TESTED;
-	kprintf("dram: starlte 4096 MiB verified at %p\n", (void *)STARLTE_DRAM_BASE);
+	kprintf("dram: starlte 4096 MiB verified at %p (PASS in %lu us)\n",
+	        (void *)STARLTE_DRAM_BASE, dt_us);
 	return 0;
 #else
 	boot_mem_add(bi, QEMU_DRAM_BASE, QEMU_DRAM_SIZE, SCION_MEM_RAM);

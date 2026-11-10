@@ -128,6 +128,47 @@ static inline void mmio_clrbits32(uint64_t a, uint32_t clr)
 #define GPA0_PIN_BIXBY             (1u << 6)
 
 /* -------------------------------------------------------------------------
+ * Display & Enhancement Controller (DECON0 / decon_f@16030000) & Framebuffer
+ * Confirmed from exynos9810-starlte DT and uniLoader (Markuss Broks /
+ * Ivaylo Ivanov): S-Boot leaves DECON_HW_SW_TRIG_CONTROL unset; writing
+ * 0x1281 enables automatic scanout of the 1440x2960x32bpp window at 0xCC000000.
+ * ------------------------------------------------------------------------- */
+#define DECON_F_BASE               0x16030000UL
+#define DECON_HW_SW_TRIG_CONTROL   0x0070UL
+#define DECON_TRIG_UNMASK_VAL      0x00001281u
+
+#define STARLTE_FB_BASE            0xCC000000ULL
+#define STARLTE_FB_WIDTH           1440u
+#define STARLTE_FB_HEIGHT          2960u
+#define STARLTE_FB_BPP             32u
+#define STARLTE_FB_STRIDE          (STARLTE_FB_WIDTH * 4u)
+#define STARLTE_FB_SIZE            0x01100000ULL /* 17 MiB carveout */
+
+/* -------------------------------------------------------------------------
+ * High-Speed I2C (HSI2C): hsi2c@14360000 (MAX77705 MUIC @ 0x66)
+ * ------------------------------------------------------------------------- */
+#define HSI2C_CTL                  0x0000UL
+#define HSI2C_FIFO_CTL             0x0004UL
+#define HSI2C_TRAILING_CTL         0x0008UL
+#define HSI2C_INT_EN               0x0020UL
+#define HSI2C_INT_STAT             0x0024UL
+#define HSI2C_FIFO_STAT            0x0030UL
+#define HSI2C_TXDATA               0x0034UL
+#define HSI2C_RXDATA               0x0038UL
+#define HSI2C_CONF                 0x0040UL
+#define HSI2C_AUTO_CONF            0x0044UL
+#define HSI2C_TIMEOUT              0x0048UL
+#define HSI2C_MANUAL_CMD           0x004CUL
+#define HSI2C_TRANS_STATUS         0x0050UL
+#define HSI2C_ADDR                 0x0070UL
+
+/* MAX77705 MUIC registers (I2C 7-bit address 0x66, or 0x25 depending on block) */
+#define MAX77705_MUIC_REG_ID       0x00u
+#define MAX77705_MUIC_REG_STATUS1  0x01u
+#define MAX77705_MUIC_REG_STATUS2  0x02u
+#define MAX77705_MUIC_REG_CTRL1    0x07u
+
+/* -------------------------------------------------------------------------
  * Write-Protected Hardware Ranges (OTP / eFuse / UFS Flash Controller)
  * Stage 1 must NEVER write to non-volatile storage or fuse banks.
  * ------------------------------------------------------------------------- */

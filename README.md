@@ -30,14 +30,16 @@ To ensure the bootloader **can never damage or brick the phone**, Stage 1 enforc
 ```
 src/start.S          EL3 reset entry, 2048B-aligned exception vectors, EL3 -> EL2 drop
 src/exceptions.c     VBAR setup, ESR_ELx EC decoding & full register crash dump
-src/main.c           stage-1 flow: console → WDT/timer → clocks → DRAM test → shell → handoff
+src/main.c           stage-1 flow: console → WDT/timer → clocks → DRAM → display → handoff
 src/loader.c         stage-2 header ('SCN2') validation, CRC32 & SHA-256 verification
-src/shell.c          interactive UART debug console (md/mw, hexdump, memtest, crc32, sha256)
-src/platform/        exynos9810.h + uart (TX/RX), clock/PMU, dram (walking-1s/0s), timer, wdt
+src/xmodem.c         UART XMODEM-CRC receiver for loading payloads into RAM without flashing
+src/shell.c          interactive UART debug console (md/mw, fbtest, muic, loadx, usbdl, etc.)
+src/platform/        exynos9810.h + uart, clock, dram, display (DECON0/font), i2c/MUIC, timer, wdt, safety
 src/lib/             freestanding string/printf (klib.c) + IEEE CRC32 & FIPS SHA-256 (crypto.c)
 src/psci/psci.c      PSCI/CPU_ON & Exynos 9810 PMU core power sequencing + spin-table
 include/boot.h       the stage-1 → stage-2 hand-off struct (ABI) & stage-2 image header
 linker/stage1.ld     bare-metal layout with stage-1 footprint symbols
+tools/mkstage2.py    host tool to wrap a stage-2 binary with a 'SCN2' CRC32+SHA-256 header
 ```
 
 ## Build
@@ -74,3 +76,4 @@ Each file has a header comment describing exactly what "done" looks like.
 - **Umer Uddin ([@halal-beef](https://github.com/halal-beef))** — Original creator of [Hubble](https://github.com/halal-beef/hubble) and [Houston](https://github.com/halal-beef/houston-pub) (`<umer.uddin@mentallysanemainliners.org>`), whose Exynos BootROM USB Download Mode (`usbdl` / `04e8:1234` DNW) recovery architecture makes unbricking Exynos devices possible.
 - **[@Robotix22](https://github.com/Robotix22)** — Creator of [open-mini-bl1](https://github.com/Robotix22/open-mini-bl1) and contributor of Exynos 9810 (`starlte`) BootROM/IRAM recovery support in Hubble and Houston.
 - **[@VDavid003](https://github.com/VDavid003)** — Creator of [exynos-usbdl](https://github.com/VDavid003/exynos-usbdl) and contributor to Exynos BootROM recovery research.
+- **Markuss Broks & Ivaylo Ivanov ([@ivoszbg](https://github.com/ivoszbg))** — [uniLoader](https://github.com/ivoszbg/uniLoader) Exynos 9810 (`starlte`) DECON0 hardware/software trigger (`0x16030070`) and `0xCC000000` framebuffer bring-up.

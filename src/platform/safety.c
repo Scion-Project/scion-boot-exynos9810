@@ -129,6 +129,8 @@ void platform_enter_usbdl(const char *reason)
 {
 	platform_wdt_disable();
 	platform_bootguard_clear();
+	display_alert("RECOVERY MODE: USBDL (04e8:1234)",
+	              reason ? reason : "Connect USB & run halal-beef/hubble");
 
 	kputs("\n============================================================\n");
 	kprintf("RECOVERY MODE — Exynos USB Download (usbdl / 04e8:1234 DNW)\n");
