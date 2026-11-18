@@ -14,6 +14,14 @@
 #ifndef LDR_AUTOBOOT_MS
 #define LDR_AUTOBOOT_MS 5000u
 #endif
+/* 1: an XNU entry's line gets scion_ldr= and scion_guard= when it has room (main.c add_loader_tokens).
+ * 0: the line is passed exactly as packed. The S9's kernel appends its built-in arguments to the
+ * line only while its 1024 bytes have room, so 54 bytes more from the loader can push the last
+ * built-ins out; 0 keeps a boot identical to sboot's for a comparison, at the cost of the OS not
+ * learning where the loader and the guard's record are (nothing in the kernel uses either yet). */
+#ifndef LDR_OS_TOKENS
+#define LDR_OS_TOKENS 1
+#endif
 #ifndef LDR_WDT_MS
 #define LDR_WDT_MS 30000u
 #endif

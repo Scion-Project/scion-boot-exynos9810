@@ -14,7 +14,11 @@ already does this after every test image. Before step 1, keep the current BOOT i
 `flash.sh SERIAL backup-boot boot-before-loader.img`.
 
 **What to build.** On the Mac, in a checkout of this repository: `make PLATFORM=starlte loader`
-(prints the loader's path and its `image end`). In scion-kernel, once its option is merged:
+(prints the loader's path and its `image end`). For a first test that should boot exactly as
+the image it replaces, add `LDR_OS_TOKENS=0`: the loader then passes the entry's line as packed, without
+`scion_ldr=` and `scion_guard=` (54 bytes on the S9; the S9's kernel appends its own built-in arguments only
+while its 1024-byte line has room, so those 54 bytes can push the last built-ins out). Nothing in the kernel
+reads either token yet. In scion-kernel, once its option is merged:
 `tools/ios27/s9/make-boot-image.sh ... --loader-kind scion --scion-boot <this checkout>` (the same
 kernel, device tree and template as the image that boots today). Note the SHA-256 it prints.
 

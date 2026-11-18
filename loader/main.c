@@ -262,7 +262,8 @@ static void start(unsigned i, int user_chose, int safe)
 		volatile struct xnu_boot_args *ba = (volatile void *)(uintptr_t)pl.boot_args_pa;
 		static char line[SCION_CMDLINE_MAX];
 		cmdline_copy(line, e->line, sizeof(line));
-		add_loader_tokens(line, sizeof(line));
+		if (LDR_OS_TOKENS)
+			add_loader_tokens(line, sizeof(line));
 		save_fdt(line);
 		ba->Revision = 2;
 		ba->Version = 2;
