@@ -69,13 +69,13 @@ static int has(const char *line, const char *w)
 }
 
 /* The Scion splash (loader/splash.c) is the last frame before the start, on the 640x480 QEMU
- * framebuffer at 0x5e000000: its centre (320, 240) is a core disc colour of one of the variants, and the
+ * framebuffer at 0x5e000000: its mark's centre (320, 218: 45.5% of the height) is a core disc colour of one of the variants, and the
  * corner is no longer the loader's clear colour (FB_DARK). */
 static void check_splash(void)
 {
-	static const uint32_t cores[] = { 0xffe6edf3u, 0xfffff3c4u, 0xffffd27au, 0xffffffffu, 0xffffd080u };
+	static const uint32_t cores[] = { 0xfff4f8ffu, 0xfffff3c4u, 0xffffd27au, 0xffffffffu, 0xffffd080u };
 	volatile uint32_t *fb = (volatile uint32_t *)(uintptr_t)0x5e000000ul;
-	uint32_t c = fb[240 * 640 + 320], corner = fb[0], far = fb[479 * 640 + 639];
+	uint32_t c = fb[218 * 640 + 320], corner = fb[0], far = fb[479 * 640 + 639];
 	int core = 0;
 	for (unsigned i = 0; i < sizeof(cores) / sizeof(cores[0]); i++)
 		if (c == cores[i])

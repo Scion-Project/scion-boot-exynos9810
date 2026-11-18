@@ -28,28 +28,79 @@ static int fails;
 #define W 1440u
 #define H 2960u
 
-#define RING   0xff1f6feeu
-#define RING2  0xff3b5a86u
-#define TOP    0xff06080fu
+static int chan(uint32_t c, int s) { return (int)((c >> s) & 0xffu); }
+static int near(uint32_t c, uint32_t want, int tol)
+{
+	for (int s = 0; s < 24; s += 8)
+		if (abs(chan(c, s) - chan(want, s)) > tol)
+			return 0;
+	return 1;
+}
 
 int main(void)
 {
-	/* the art: the centre is the core, the orbit and the inner ring are where they should be */
-	uint32_t cx = W / 2, cy = H / 2;     /* centred */
+	struct splash_geom g, q;
+	splash_geometry(W, H, &g);
+	splash_geometry(640, 480, &q);
+	int cx = g.cx, cy = g.cy;
+	CHECK(cx == 720 && cy == (int)(H * SPLASH_CY_PERMILLE / 1000));   /* centred, a little above the middle */
+	CHECK(g.R == 331);                                                   /* the orbit is about 46% of the width */
+
+	/* the core: the centre, only once ignited */
 	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx, cy, 256) == SPLASH_DEFAULT_CORE);
-	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx, cy, 0) != SPLASH_DEFAULT_CORE);   /* no core at k=0 */
-	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx + 335, cy, 256) == RING);           /* the orbit */
-	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx + 262, cy, 256) == RING2);          /* the inner ring */
-	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx + 300, cy, 256) != RING);           /* between them */
-	CHECK(splash_pixel(SPL_DEFAULT, W, H, 0, 0, 256) == TOP);                   /* top-left corner */
-	CHECK(splash_pixel(SPL_GOLD, W, H, cx, cy, 256) != SPLASH_DEFAULT_CORE);    /* palettes differ */
-	CHECK(splash_pixel(99, W, H, 0, 0, 256) == TOP);                            /* bad variant: default */
-	/* the same art on a small screen (QEMU's 640x480) keeps the mark centred */
-	CHECK(splash_pixel(SPL_DEFAULT, 640, 480, 320, 240, 256) == SPLASH_DEFAULT_CORE);
-	/* the mark is about 46% of the width: the orbit starts at 23% of the width from the centre */
-	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx + 370, cy, 256) != RING);
-	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx - 335, cy, 256) == RING);
-	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx, cy + 335, 256) == RING);       /* the panel is portrait: min(w, h) rules */
+	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx, cy, 0) != SPLASH_DEFAULT_CORE);
+	CHECK(splash_pixel(SPL_GOLD, W, H, cx, cy, 256) != SPLASH_DEFAULT_CORE);   /* palettes differ */
+	CHECK(splash_pixel(99, W, H, 0, 0, 256) == splash_pixel(SPL_DEFAULT, W, H, 0, 0, 256));   /* bad variant */
+	CHECK(splash_pixel(SPL_DEFAULT, 640, 480, 320, q.cy, 256) == SPLASH_DEFAULT_CORE);   /* a small screen */
+
+	/* the background: near-black at the top, midnight blue at the bottom, within a dither level */
+	CHECK(near(splash_pixel(SPL_DEFAULT, W, H, 0, 0, 256), 0xff02040au, 1));
+	CHECK(near(splash_pixel(SPL_DEFAULT, W, H, W - 1, H - 1, 256), 0xff0a1a3au, 1));
+	/* dithered, not banded: along a row the gradient's fractional part shows as two levels */
+	{
+		int lo = 255, hi = 0;
+		for (uint32_t y = 1400; y < 1404; y++)
+			for (uint32_t x = 0; x < 4; x++) {
+				int b = chan(splash_pixel(SPL_DEFAULT, W, H, x, y, 256), 0);
+				if (b < lo) lo = b;
+				if (b > hi) hi = b;
+			}
+		CHECK(hi - lo <= 1);
+	}
+	/* the halo: lit around the mark, dark far from it */
+	CHECK(chan(splash_pixel(SPL_DEFAULT, W, H, cx - g.R - 40, cy, 256), 0) >
+	      chan(splash_pixel(SPL_DEFAULT, W, H, 5, cy, 256), 0) + 8);
+	/* the orbit is anti-aliased: across its edge the blue goes up and down through intermediate values */
+	{
+		int seen[256] = { 0 }, n = 0, peak = 0;
+		for (int x = cx - g.R - 20; x < cx - g.R + 20; x++) {
+			int b = chan(splash_pixel(SPL_DEFAULT, W, H, (uint32_t)x, (uint32_t)cy, 256), 0);
+			if (!seen[b]) { seen[b] = 1; n++; }
+			if (b > peak) peak = b;
+		}
+		CHECK(n >= 8);
+		CHECK(peak >= 0xf0 || peak >= 0xe0);                    /* the orbit itself is bright (its blue) */
+		CHECK(near(splash_pixel(SPL_DEFAULT, W, H, (uint32_t)(cx - g.R), (uint32_t)cy, 256), 0xff3d8bffu, 24));
+	}
+	/* the satellite sits on the orbit, in the core's colour */
+	CHECK(splash_pixel(SPL_DEFAULT, W, H, (uint32_t)g.sat_x, (uint32_t)g.sat_y, 256) == SPLASH_DEFAULT_CORE);
+	/* the wordmark: its I (a vertical stroke) is the text colour at full ignition, absent without it */
+	CHECK(splash_pixel(SPL_DEFAULT, W, H, (uint32_t)g.i_x, (uint32_t)g.text_y, 256) == 0xffdfe9fau);
+	CHECK(near(splash_pixel(SPL_DEFAULT, W, H, (uint32_t)g.i_x, (uint32_t)g.text_y, 0),
+	           splash_pixel(SPL_DEFAULT, W, H, (uint32_t)g.i_x + 60, (uint32_t)g.text_y, 0), 3));
+	CHECK(near(splash_pixel(SPL_DEFAULT, W, H, (uint32_t)g.i_x, (uint32_t)(g.text_y - g.text_h), 256),
+	           splash_pixel(SPL_DEFAULT, W, H, (uint32_t)g.i_x + 60, (uint32_t)(g.text_y - g.text_h), 256), 3));
+	/* the hairline: an empty track at 0, filled to k / 256 of its length */
+	{
+		uint32_t mid = (uint32_t)(g.hair_x0 + g.hair_len / 2), yy = (uint32_t)g.hair_y;
+		uint32_t left = (uint32_t)(g.hair_x0 + g.hair_len / 8), right = (uint32_t)(g.hair_x0 + g.hair_len * 7 / 8);
+		CHECK(splash_pixel(SPL_DEFAULT, W, H, mid, yy, 256) == 0xff3d8bffu);
+		CHECK(splash_pixel(SPL_DEFAULT, W, H, mid, yy, 0) != 0xff3d8bffu);
+		CHECK(splash_pixel(SPL_DEFAULT, W, H, left, yy, 128) == 0xff3d8bffu);
+		CHECK(splash_pixel(SPL_DEFAULT, W, H, right, yy, 128) != 0xff3d8bffu);
+		CHECK(splash_pixel(SPL_DEFAULT, W, H, mid, yy - 20, 256) == splash_pixel(SPL_DEFAULT, W, H, mid, yy - 21, 256) ||
+		      near(splash_pixel(SPL_DEFAULT, W, H, mid, yy - 20, 256), splash_pixel(SPL_DEFAULT, W, H, mid, yy - 21, 256), 1));
+	}
 
 	/* the build date */
 	CHECK(splash_variant_for_date("Oct 31 2026") == SPL_HALLOWEEN);
@@ -109,8 +160,8 @@ int main(void)
 	CHECK(buf[(480 - 1) * 640 + 639] != 0);             /* so is the far corner */
 	/* the centre holds the core of whatever variant is current */
 	unsigned v = splash_current();
-	CHECK(buf[240 * 640 + 320] == splash_pixel(v, 640, 480, 320, 240, 256));
-	/* no text: every pixel is the art's (no glyph colour in the default palette's text white) */
+	CHECK(buf[(size_t)q.cy * 640 + 320] == splash_pixel(v, 640, 480, 320, (uint32_t)q.cy, 256));
+	/* every pixel is the art's, the final frame */
 	{
 		size_t bad = 0;
 		for (uint32_t y = 0; y < 480; y++)
