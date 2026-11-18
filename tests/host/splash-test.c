@@ -35,17 +35,21 @@ static int fails;
 int main(void)
 {
 	/* the art: the centre is the core, the orbit and the inner ring are where they should be */
-	uint32_t cx = W / 2, cy = H * 42u / 100u;
+	uint32_t cx = W / 2, cy = H / 2;     /* centred */
 	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx, cy, 256) == SPLASH_DEFAULT_CORE);
 	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx, cy, 0) != SPLASH_DEFAULT_CORE);   /* no core at k=0 */
-	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx + 330, cy, 256) == RING);           /* the orbit */
-	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx + 200, cy, 256) == RING2);          /* the inner ring */
-	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx + 250, cy, 256) != RING);           /* between them */
+	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx + 335, cy, 256) == RING);           /* the orbit */
+	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx + 262, cy, 256) == RING2);          /* the inner ring */
+	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx + 300, cy, 256) != RING);           /* between them */
 	CHECK(splash_pixel(SPL_DEFAULT, W, H, 0, 0, 256) == TOP);                   /* top-left corner */
 	CHECK(splash_pixel(SPL_GOLD, W, H, cx, cy, 256) != SPLASH_DEFAULT_CORE);    /* palettes differ */
 	CHECK(splash_pixel(99, W, H, 0, 0, 256) == TOP);                            /* bad variant: default */
 	/* the same art on a small screen (QEMU's 640x480) keeps the mark centred */
-	CHECK(splash_pixel(SPL_DEFAULT, 640, 480, 320, 201, 256) == SPLASH_DEFAULT_CORE);
+	CHECK(splash_pixel(SPL_DEFAULT, 640, 480, 320, 240, 256) == SPLASH_DEFAULT_CORE);
+	/* the mark is about 46% of the width: the orbit starts at 23% of the width from the centre */
+	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx + 370, cy, 256) != RING);
+	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx - 335, cy, 256) == RING);
+	CHECK(splash_pixel(SPL_DEFAULT, W, H, cx, cy + 335, 256) == RING);       /* the panel is portrait: min(w, h) rules */
 
 	/* the build date */
 	CHECK(splash_variant_for_date("Oct 31 2026") == SPL_HALLOWEEN);
@@ -105,7 +109,7 @@ int main(void)
 	CHECK(buf[(480 - 1) * 640 + 639] != 0);             /* so is the far corner */
 	/* the centre holds the core of whatever variant is current */
 	unsigned v = splash_current();
-	CHECK(buf[201 * 640 + 320] == splash_pixel(v, 640, 480, 320, 201, 256));
+	CHECK(buf[240 * 640 + 320] == splash_pixel(v, 640, 480, 320, 240, 256));
 	/* no text: every pixel is the art's (no glyph colour in the default palette's text white) */
 	{
 		size_t bad = 0;
@@ -116,6 +120,33 @@ int main(void)
 		CHECK(bad == 0);
 	}
 	free(buf);
+
+	/* the real panel: 1440x2960, stride 5760, the S-Boot leftovers (0x00c0ffee blocks) all overwritten */
+	{
+		uint32_t *big = malloc((size_t)W * H * 4);
+		CHECK(big != NULL);
+		for (size_t i = 0; i < (size_t)W * H; i++)
+			big[i] = 0x00c0ffeeu;
+		memset(&test_fb, 0, sizeof(test_fb));
+		test_fb.base = (uint64_t)(uintptr_t)big;
+		test_fb.width = W;
+		test_fb.height = H;
+		test_fb.stride = W * 4;
+		test_fb.scale = 5;
+		splash_handoff();
+		unsigned vv = splash_current();
+		size_t bad = 0, left = 0;
+		for (uint32_t y = 0; y < H; y++)
+			for (uint32_t x = 0; x < W; x++) {
+				if (big[(size_t)y * W + x] == 0x00c0ffeeu)
+					left++;
+				if (big[(size_t)y * W + x] != splash_pixel(vv, W, H, x, y, 256))
+					bad++;
+			}
+		CHECK(left == 0);       /* no leftover pixel anywhere */
+		CHECK(bad == 0);        /* and every one is the art's */
+		free(big);
+	}
 
 	if (fails) {
 		printf("splash-test: %d failure(s)\n", fails);

@@ -4,11 +4,16 @@ The loader leaves one Scion frame on the panel just before it starts an XNU entr
 keeps it (its framebuffer console stays quiet unless `-v`). The frame has no text.
 
 - **Art**: original, drawn in code (MIT-0 for `loader/splash.*` and `tests/host/splash-test.c`):
-  a dark vertical gradient, an outer ring, a thin inner ring and a core disc at 42% of the height.
-  Integer maths only. No bitmaps, no Apple artwork.
+  a dark vertical gradient over the whole panel (the width, height and stride `plat_fb()` gives:
+  1440x2960 on the S9, 640x480 only in QEMU), and, centred on the panel, an outer ring (the orbit,
+  about 46% of the width), a thin inner ring and a core disc. Integer maths only. No bitmaps, no
+  Apple artwork.
+- **Full panel**: the background is one fill of every pixel of every row (a colour per row, 64-bit
+  stores), so nothing S-Boot left behind survives. The per-pixel art is drawn only inside the
+  mark's bounding box (about 51% of the width square), not over the whole panel.
 - **Ignition**: the core grows in four steps (64, 128, 192, 256 of 256), repainting only its square,
-  with 10 ms between steps: about 30 ms in total. A full paint of the panel is the other cost.
-- **Budget**: one full-panel write plus about 30 ms of pauses. Not measured on a phone yet.
+  with 10 ms between steps: about 30 ms in total.
+- **Budget**: one full-panel fill plus about 0.5 M art pixels plus about 30 ms of pauses. Not measured on a phone yet.
 - **No framebuffer**: `splash_handoff()` returns at once. Nothing else in the loader changes.
 - **Crossfade**: not here. The loader cannot see iOS's first frame; a fade needs the display
   surface of iOS's own driver.
@@ -28,6 +33,6 @@ Rules: the eggs only observe the menu's keys; the menu does not change. An egg e
 wins over the build-date variant, and the last egg entered wins. The build date is the build's
 `__DATE__`, because the loader reads no clock. Eggs live in RAM only: nothing is written to storage.
 
-Tests: `tests/host/splash-test.c` (pixels, eggs, dates, the handoff on a host buffer) runs in
+Tests: `tests/host/splash-test.c` (pixels, eggs, dates, the handoff on a 640x480 and on a real-size 1440x2960 host buffer: every pixel is overwritten) runs in
 `make host-test`; `tests/qemu/fake_main.c` and `tools/qemu-test.py` check the splash on the QEMU
 framebuffer in the autoboot scenario. The Verbose egg is not in QEMU (no Bixby there).
