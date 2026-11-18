@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: MIT
+# Builds and tests that need no phone (docs/STATUS.md, "Testing without a phone").
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    strategy:
+      matrix:
+        platform: [qemu, starlte]
+    steps:
+      - uses: actions/checkout@v4
+      - name: toolchain
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
+      - name: stage 1
+        run: make PLATFORM=${{ matrix.platform }}
+
+  qemu:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: toolchain and QEMU
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu qemu-system-arm
+      - name: stage 1 smoke test
+        run: make PLATFORM=qemu && sh tools/stage1-qemu-test.sh
