@@ -23,6 +23,15 @@ jobs:
       - name: stage 1
         run: make PLATFORM=${{ matrix.platform }}
 
+  host:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: plain-C parts on the host (ASan/UBSan), SHA-256/CRC32 against Python
+        run: make host-test
+      - name: arch-check
+        run: python3 tools/arch-check.py
+
   qemu:
     runs-on: ubuntu-24.04
     steps:

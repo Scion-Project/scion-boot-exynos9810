@@ -90,4 +90,130 @@ struct scion_boot_info {
 #define SCION_BF_STAGE2_OK   (1u << 3) /* stage-2 CRC32 + SHA-256 verified */
 #define SCION_BF_SAFE_MODE   (1u << 4) /* boot-loop guard or button recovery triggered */
 
+/*
+ * ---- Second-stage loader (loader/, PLATFORM=... make loader) --------------
+ *
+ * The EL1 loader that Samsung's S-Boot starts from the BOOT partition's kernel
+ * slot (docs/STATUS.md). It is an arm64 Image; the images it can start are
+ * appended to it, each as an SCN2 record (struct scion_stage2_hdr above, padded
+ * to SCION_S2_PAGE bytes so the payload that follows is page aligned), one
+ * after the other from the first 4 KiB boundary after the loader's own end.
+ * The list ends at the first page that does not start with SCION_STAGE2_MAGIC.
+ *
+ * Flags bits 8..11 say what the payload is; the loader refuses kinds it does
+ * not know. SCION_S2_FLAG_SKIP_HASH is refused by the loader: every payload it
+ * starts is checked against its SHA-256 (and, when the loader was built with
+ * pinned digests, against that list too).
+ */
+#define SCION_S2_PAGE          4096u
+#define SCION_S2_FLAG_SAFE     (1u << 4) /* the boot-loop guard's known-good entry */
+#define SCION_S2_FLAG_DEFAULT  (1u << 5) /* the menu's default entry */
+#define SCION_S2_KIND_SHIFT    8
+#define SCION_S2_KIND_MASK     (0xfu << SCION_S2_KIND_SHIFT)
+#define SCION_S2_KIND_RAW      0u  /* stage-1's stage 2 (not started by the loader) */
+#define SCION_S2_KIND_XNU      1u  /* a SWEETXNU payload (tools/ios27/herolte/mkpayload.py) */
+#define SCION_S2_KIND_IMAGE    2u  /* an arm64 Image entered in place, x0 = S-Boot's FDT */
+#define SCION_S2_KIND(flags)   (((flags) & SCION_S2_KIND_MASK) >> SCION_S2_KIND_SHIFT)
+#define SCION_S2_MAX_ENTRIES   8u
+
+/*
+ * Re-entry: the loader's second entry point, at its Image base + 0x40 (the
+ * first instruction after the 64-byte arm64 Image header), followed by the
+ * mark "SCNR" at +0x44 and the record version (u32) at +0x48, which the OS
+ * checks before it jumps. Cold boot from S-Boot stays at the base.
+ * docs/handoff-contract.md, "Re-entering the loader".
+ *
+ * At re-entry: EL1, MMU off, every byte the loader will read cleaned to the
+ * point of coherency, I-cache invalidated, DAIF masked, the GIC CPU interface
+ * of the calling core off, one CPU running (the boot CPU; the others PSCI
+ * CPU_OFF), x0 = the physical address of this record (8-byte aligned, outside
+ * the loader's range and outside the OS RAM it is about to fill), x1..x3 = 0.
+ * The OS has put BOOT's kernel slot (this loader and the records appended to
+ * it) back where S-Boot had it, read from the BOOT partition: XNU reuses that
+ * RAM. The loader trusts none of it: every record is re-checked (SHA-256)
+ * before anything in it is started. Agreed with scion-kernel's
+ * docs/ios27/WARM-RESTART.md (the OS side).
+ */
+#define SCION_REENTRY_MAGIC    0x524E4353u /* 'SCNR' */
+#define SCION_REENTRY_VERSION  1u
+#define SCION_CMDLINE_MAX      608u        /* XNU's BOOT_LINE_LENGTH, NUL included */
+#define SCION_REENTRY_OFFSET   0x40u
+
+#define SCION_RE_REASON_USER     0u /* a restart the user asked for */
+#define SCION_RE_REASON_PANIC    1u /* the OS panicked and chose to come back */
+#define SCION_RE_REASON_WATCHDOG 2u /* the OS's own hang watchdog fired */
+#define SCION_RE_REASON_TEST     3u
+
+#define SCION_RE_BOOT_ENTRY  (1u << 0) /* no menu: start entry[] directly */
+#define SCION_RE_CMDLINE     (1u << 1) /* cmdline[] replaces the entry's line ... */
+#define SCION_RE_MENU        (1u << 2) /* show the menu without the countdown */
+#define SCION_RE_RESTAGED    (1u << 3) /* the OS put BOOT's kernel slot back where S-Boot had it */
+#define SCION_RE_WDT_ARMED   (1u << 4) /* the OS left a hardware watchdog running: the loader
+                                          pets it while it runs and stops it (WTCON = 0) right
+                                          before it enters the next OS ... */
+#define SCION_RE_WDT_KEEP    (1u << 5) /* ... unless this is set: then it stays armed */
+#define SCION_RE_APPEND      (1u << 6) /* ... with CMDLINE: cmdline[] is appended to the entry's line */
+
+#define SCION_RE_METHOD_XNU      0u /* an entry appended to the loader (entry[]) */
+#define SCION_RE_METHOD_ANDROID  1u /* kernel + ramdisk at kernel_pa/ramdisk_pa (the current
+                                       loader's Android path; this loader shows its menu) */
+
+/* Where a cold-booting loader keeps S-Boot's FDT for a later re-entry, when the started line
+ * has sweetwarm=: S-Boot's own copy is XNU RAM by then. A 4 KiB header (u64 SCION_FDT_SAVE_MAGIC,
+ * u64 FDT size) and the FDT at +0x1000; 1 MiB in all. On the S9 below the warm restart's own
+ * hand-off area (0x91060000..0x910fffff) and the current loader's USB DMA (0x91000000..). */
+#define SCION_FDT_SAVE_STARLTE   0x91100000ull
+#define SCION_FDT_SAVE_QEMU      0x5f800000ull
+#define SCION_FDT_SAVE_MAGIC     0x31544446524e4353ull /* "SCNRFDT1" */
+#define SCION_FDT_SAVE_HDR       0x1000u
+#define SCION_FDT_SAVE_MAX       ((1u << 20) - SCION_FDT_SAVE_HDR)
+
+struct scion_reentry {
+	uint32_t magic;          /* SCION_REENTRY_MAGIC */
+	uint16_t version;        /* SCION_REENTRY_VERSION */
+	uint16_t size;           /* sizeof(struct scion_reentry) */
+	uint32_t reason;         /* SCION_RE_REASON_* */
+	uint32_t flags;          /* SCION_RE_* */
+	uint32_t entry;          /* index of the appended record, ~0u = the default */
+	uint32_t crc32;          /* IEEE CRC32 of the record with this field 0 */
+	char     cmdline[SCION_CMDLINE_MAX];
+	uint32_t method;         /* SCION_RE_METHOD_* */
+	uint32_t wdt_ms;         /* the armed watchdog's period (information only) */
+	uint64_t image_pa;       /* where the OS put BOOT's kernel slot back (the loader's base) */
+	uint64_t image_size;
+	uint64_t kernel_pa;      /* METHOD_ANDROID */
+	uint64_t kernel_size;
+	uint64_t ramdisk_pa;
+	uint64_t ramdisk_size;
+	uint64_t fdt_pa;         /* an FDT for IMAGE entries (x0), 0 = none */
+	uint8_t  image_sha256[32]; /* SHA-256 of what follows the loader in the restaged slot
+	                              (image_pa + its _image_end .. image_pa + image_size): for a
+	                              loader without per-record hashes; this one checks each record */
+};
+
+/*
+ * Boot-loop guard record: 32 bytes of RAM that survive a warm reset (on the
+ * S9 a slot of the exynos-ss page, docs/STATUS.md). Written by the loader
+ * before every automatic start; the OS acknowledges a good boot by writing
+ * strikes = 0 with a matching crc32 (its address is on the command line as
+ * scion_guard=). Anything that does not validate reads as "no strikes", which
+ * is what a cold power-on looks like.
+ */
+#define SCION_GUARD_MAGIC    0x474E4353u /* 'SCNG' */
+#define SCION_GUARD_VERSION  1u
+#define SCION_GUARD_LIMIT    3u
+
+#define SCION_GUARD_F_SAFE_TRIED (1u << 0) /* the known-good entry was started after a trip */
+
+struct scion_guard_rec {
+	uint32_t magic;          /* SCION_GUARD_MAGIC */
+	uint16_t version;        /* SCION_GUARD_VERSION */
+	uint16_t size;           /* sizeof(struct scion_guard_rec) */
+	uint32_t strikes;        /* automatic starts not yet acknowledged */
+	uint32_t last_entry;     /* index of the last entry started */
+	uint32_t flags;          /* SCION_GUARD_F_* */
+	uint32_t crc32;          /* IEEE CRC32 of the record with this field 0 */
+	uint64_t _reserved;
+};
+
 #endif /* SCION_BOOT_H */

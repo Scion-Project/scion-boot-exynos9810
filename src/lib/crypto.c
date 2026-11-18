@@ -37,14 +37,8 @@ static const uint32_t sha256_k[64] = {
 	0x19a4c116u, 0x1e376c08u, 0x2748774cu, 0x34b0bcb5u,
 	0x391c0cb3u, 0x4ed8aa4au, 0x5b9cca4fu, 0x682e6ff3u,
 	0x748f82eeu, 0x78a5636fu, 0x84c87814u, 0x8cc70208u,
-	0x90befffa4u & 0xffffffffu, 0xa4506cebu, 0xbef9a3f7u, 0xc67178f2u
+	0x90befffau, 0xa4506cebu, 0xbef9a3f7u, 0xc67178f2u
 };
-
-/* Fix constant 60 explicitly to 0x90befffa */
-static inline uint32_t k_at(unsigned i)
-{
-	return (i == 60) ? 0x90befffau : sha256_k[i];
-}
 
 static inline uint32_t rotr32(uint32_t x, unsigned n)
 {
@@ -73,7 +67,7 @@ static void sha256_block(uint32_t state[8], const uint8_t block[64])
 	for (unsigned i = 0; i < 64; i++) {
 		uint32_t S1 = rotr32(e, 6) ^ rotr32(e, 11) ^ rotr32(e, 25);
 		uint32_t ch = (e & f) ^ ((~e) & g);
-		uint32_t temp1 = h + S1 + ch + k_at(i) + w[i];
+		uint32_t temp1 = h + S1 + ch + sha256_k[i] + w[i];
 		uint32_t S0 = rotr32(a, 2) ^ rotr32(a, 13) ^ rotr32(a, 22);
 		uint32_t maj = (a & b) ^ (a & c) ^ (b & c);
 		uint32_t temp2 = S0 + maj;
