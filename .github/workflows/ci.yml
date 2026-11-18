@@ -22,6 +22,23 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
       - name: stage 1
         run: make PLATFORM=${{ matrix.platform }}
+      - name: second-stage loader (no absolute relocations)
+        run: make PLATFORM=${{ matrix.platform }} loader
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scion-loader-${{ matrix.platform }}
+          path: |
+            build/${{ matrix.platform }}/scion-loader.bin
+            build/${{ matrix.platform }}/scion-loader.image-end
+
+  host:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: plain-C parts on the host (ASan/UBSan), SHA-256/CRC32 against Python
+        run: make host-test
+      - name: arch-check
+        run: python3 tools/arch-check.py
 
   qemu:
     runs-on: ubuntu-24.04
@@ -31,3 +48,10 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu qemu-system-arm
       - name: stage 1 smoke test
         run: make PLATFORM=qemu && sh tools/stage1-qemu-test.sh
+      - name: loader on QEMU (menu, verified start, tamper, pins, guard, watchdog, crash, re-entry)
+        run: make PLATFORM=qemu qemu-test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: qemu-test-consoles
+          path: build/qemu-test/runs/*.log

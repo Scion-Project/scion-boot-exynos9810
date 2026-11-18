@@ -1,0 +1,14 @@
+scion-boot-exynos9810
+Copyright (c) the Scion Project contributors. MIT licence (LICENSE).
+
+The second-stage loader (loader/, src/lib/verify.*, tools/mkloaderimg.py, tools/mkpins.py,
+tests/) was written for this repository. Facts about the Galaxy S9 it relies on (register
+addresses and values, RAM windows, boot-reason values) are re-stated, with their source named in
+the file that uses them, from:
+  - Scion-Project/scion-kernel, xnuloader/sboot (GPL-2.0-only): facts only, no code;
+  - Samsung's starlte device tree in Scion-Project/android_kernel_samsung_exynos9810 (GPL-2.0):
+    facts only, no code;
+  - uniLoader (Markuss Broks, Ivaylo Ivanov): the DECON0 trigger value, a fact.
+The SWEETXNU payload layout is the Scion project's own (scion-kernel
+tools/ios27/herolte/mkpayload.py); XNU's boot_args is written from its field list. No code or data
+from Apple or Samsung is in this repository.
