@@ -10,7 +10,7 @@ ELF=$ROOT/build/qemu/scion-boot.elf
 LOG=$(mktemp "${TMPDIR:-/tmp}/stage1-qemu.XXXXXX")
 trap 'rm -f "$LOG"' EXIT
 timeout 20 qemu-system-aarch64 -M virt,secure=on,virtualization=on -cpu cortex-a57 -m 2G \
-	-display none -monitor none -serial stdio -kernel "$ELF" < /dev/null > "$LOG" 2>&1 || true
+	-display none -monitor none -nic none -serial stdio -kernel "$ELF" < /dev/null > "$LOG" 2>&1 || true
 for want in "crypto: CRC32 + SHA-256 self-test PASS" "loader: verified 'stage2_stub'" \
 	"hand-off contract satisfied"; do
 	if ! grep -q "$want" "$LOG"; then
