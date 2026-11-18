@@ -19,6 +19,7 @@
 #include "plat.h"
 #include "lib.h"
 #include "pins.h"
+#include "splash.h"
 
 extern char _start[], _image_end[];
 void ldr_jump(uint64_t entry, uint64_t x0) __attribute__((noreturn));
@@ -262,6 +263,12 @@ static void start(unsigned i, int user_chose, int safe)
 		volatile struct xnu_boot_args *ba = (volatile void *)(uintptr_t)pl.boot_args_pa;
 		static char line[SCION_CMDLINE_MAX];
 		cmdline_copy(line, e->line, sizeof(line));
+		if (splash_verbose_held(plat_keys()) && !cmdline_has(line, "-v")) {
+			/* easter egg: Bixby held as the entry starts: the kernel shows its log */
+			con_line("egg: verbose kernel log (-v)");
+			if (cmdline_append(line, sizeof(line), "-v"))
+				con_line("note: no room for -v on the line");
+		}
 		if (LDR_OS_TOKENS)
 			add_loader_tokens(line, sizeof(line));
 		save_fdt(line);
@@ -297,7 +304,10 @@ static void start(unsigned i, int user_chose, int safe)
 	b[0] = 0;
 	cmdline_copy(b, "EL1 at ", sizeof(b));
 	put_hex(b, entry);
-	ui_progress("Starting", b);
+	/* The last frame on the panel: the Scion splash, no text (kept by the kernel's quiet console). */
+	splash_handoff();
+	kputs("Starting: ");
+	con_line(b);
 	kprintf("guard: %u unacknowledged start(s) recorded\n", L.guard.strikes);
 	con_line("handoff");
 	plat_wdt_stop();

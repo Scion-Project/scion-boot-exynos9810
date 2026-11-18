@@ -131,10 +131,12 @@ def scenarios(d):
     def autoboot(r):
         r.expect(r"autoboot: iOS 27 in")
         r.expect(r"verify iOS 27: verified")
+        r.expect(r"splash: \w+, 640x480")
         r.expect(r"guard: 1 unacknowledged start")
         r.expect(r"FAKEXNU: line=-v serial=3 test=ios27 scion_ldr=0x40080000,0x[0-9a-f]+ scion_guard=0x5ffff000")
         r.expect(r"FAKEXNU: adt=FAKEADT!")
         r.expect(r"FAKEXNU: PASS boot_args")
+        r.expect(r"FAKEXNU: PASS splash")
     s["autoboot"] = (plain, two, [], autoboot)
 
     # The S9's S-Boot leaves CNTFRQ_EL0 at 0: the countdown must still end, and a key press must

@@ -13,6 +13,12 @@ $CC -std=c11 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-sanitiz
 	"$ROOT/tests/host/codecs-test.c" "$ROOT/src/lib/crypto.c" "$ROOT/src/lib/verify.c" \
 	"$ROOT/loader/policy.c" "$ROOT/loader/xnu.c" -o "$T/codecs-test"
 "$T/codecs-test"
+# the boot splash (loader/splash.c): the art's pixels, the easter eggs, the build-date variant
+$CC -std=c11 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined -fno-sanitize-recover=all \
+	-I"$ROOT/include" -I"$ROOT/src/lib" -I"$ROOT/loader" -I"$ROOT/src/platform" \
+	"$ROOT/tests/host/splash-test.c" "$ROOT/loader/splash.c" "$ROOT/src/lib/crypto.c" \
+	"$ROOT/src/lib/verify.c" "$ROOT/loader/policy.c" "$ROOT/loader/xnu.c" -o "$T/splash-test"
+"$T/splash-test"
 for n in $(seq 0 300) 1000000; do
 	printf '%s ' "$n"
 	"$T/codecs-test" sha "$n"

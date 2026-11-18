@@ -92,7 +92,7 @@ clean:
 # LDR_OS_TOKENS=0: pass each XNU entry's line exactly as packed (no scion_ldr=/scion_guard=; loader/main.c).
 LDR_PLAT_SRC := loader/plat_$(PLATFORM).c
 LDR_SRCS := loader/entry.S loader/main.c loader/ui.c loader/crash.c loader/console.c \
-            loader/policy.c loader/xnu.c loader/mmu.c loader/fbcon.c $(LDR_PLAT_SRC) \
+            loader/policy.c loader/xnu.c loader/mmu.c loader/fbcon.c loader/splash.c $(LDR_PLAT_SRC) \
             src/lib/klib.c src/lib/crypto.c src/lib/verify.c
 LDR_DIR  := $(BUILD)/loader
 LDR_OBJS := $(patsubst %,$(LDR_DIR)/%.o,$(subst /,_,$(LDR_SRCS)))
