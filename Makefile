@@ -89,6 +89,7 @@ clean:
 # ---- second-stage loader (loader/, docs/STATUS.md) ----------------------------------------
 # make PLATFORM=starlte loader     -> build/starlte/scion-loader.bin (+ .elf, .image-end)
 # PINS=FILE: SHA-256 list (tools/mkpins.py) the loader will accept; LDR_AUTOBOOT_MS, LDR_TOGGLES.
+# LDR_OS_TOKENS=0: pass each XNU entry's line exactly as packed (no scion_ldr=/scion_guard=; loader/main.c).
 LDR_PLAT_SRC := loader/plat_$(PLATFORM).c
 LDR_SRCS := loader/entry.S loader/main.c loader/ui.c loader/crash.c loader/console.c \
             loader/policy.c loader/xnu.c loader/mmu.c loader/fbcon.c $(LDR_PLAT_SRC) \
@@ -100,7 +101,8 @@ LDR_BIN  := $(BUILD)/scion-loader.bin
 LDR_LOAD := $(if $(filter starlte,$(PLATFORM)),0x80080000,0x40080000)
 LDR_DEFS := $(if $(LDR_AUTOBOOT_MS),-DLDR_AUTOBOOT_MS=$(LDR_AUTOBOOT_MS)u) \
             $(if $(LDR_WDT_MS),-DLDR_WDT_MS=$(LDR_WDT_MS)u) \
-            $(if $(LDR_TOGGLES),-DLDR_TOGGLES='"$(LDR_TOGGLES)"')
+            $(if $(LDR_TOGGLES),-DLDR_TOGGLES='"$(LDR_TOGGLES)"') \
+            $(if $(LDR_OS_TOKENS),-DLDR_OS_TOKENS=$(LDR_OS_TOKENS))
 LDR_CFLAGS := -ffreestanding -nostdlib -fno-builtin -mgeneral-regs-only -mstrict-align \
               -fno-stack-protector -fno-pic -fno-pie -fno-jump-tables \
               -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 \
