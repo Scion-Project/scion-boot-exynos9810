@@ -29,7 +29,7 @@ Image: the loader + the iOS 27 payload you booted last (one entry, `default`), n
 Expected, in order:
 1. S-Boot's splash as today.
 2. A dark screen with a blue bar: **Scion loader v1 starlte / Choose what to start**; below it
-   `> 1. iOS 27 [iOS]`, `2. Reboot to recovery (TWRP)`, `3. Reboot to Download mode`, `4. Power off`;
+   `> 1. iOS 27 [iOS]`, `2. Reboot to recovery (Scion recovery)`, `3. Reboot to Download mode`, `4. Power off`;
    the command line; at the bottom `autoboot: iOS 27 in 5 s (any key stops)` counting down.
 3. Without touching anything: **Checking SHA-256 / iOS 27** (a few seconds at most), **Copying the
    kernel**, **Starting EL1 at 0x...**, then iOS 27 boots as it does with today's loader.

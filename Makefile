@@ -102,7 +102,8 @@ LDR_LOAD := $(if $(filter starlte,$(PLATFORM)),0x80080000,0x40080000)
 LDR_DEFS := $(if $(LDR_AUTOBOOT_MS),-DLDR_AUTOBOOT_MS=$(LDR_AUTOBOOT_MS)u) \
             $(if $(LDR_WDT_MS),-DLDR_WDT_MS=$(LDR_WDT_MS)u) \
             $(if $(LDR_TOGGLES),-DLDR_TOGGLES='"$(LDR_TOGGLES)"') \
-            $(if $(LDR_OS_TOKENS),-DLDR_OS_TOKENS=$(LDR_OS_TOKENS))
+            $(if $(LDR_OS_TOKENS),-DLDR_OS_TOKENS=$(LDR_OS_TOKENS)) \
+            $(if $(LDR_TEST_CNTFRQ0),-DLDR_TEST_CNTFRQ0=1)
 LDR_CFLAGS := -ffreestanding -nostdlib -fno-builtin -mgeneral-regs-only -mstrict-align \
               -fno-stack-protector -fno-pic -fno-pie -fno-jump-tables \
               -fno-asynchronous-unwind-tables -Wall -Wextra -Werror -O2 \
@@ -168,6 +169,7 @@ $(QT)/fakes.stamp: $(QT)/fakexnu.elf $(QT)/chain.elf tests/qemu/mkfakexnu.py too
 qemu-test: $(QT)/fakes.stamp
 	$(MAKE) PLATFORM=qemu BUILD=$(QT)/plain LDR_AUTOBOOT_MS=1500 LDR_WDT_MS=3000 loader
 	$(MAKE) PLATFORM=qemu BUILD=$(QT)/pinned LDR_AUTOBOOT_MS=1500 LDR_WDT_MS=3000 PINS=$(QT)/pins.txt loader
+	$(MAKE) PLATFORM=qemu BUILD=$(QT)/cntfrq0 LDR_AUTOBOOT_MS=1500 LDR_WDT_MS=3000 LDR_TEST_CNTFRQ0=1 loader
 	python3 tools/qemu-test.py --dir $(QT)
 
 

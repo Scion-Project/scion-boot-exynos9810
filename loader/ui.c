@@ -9,8 +9,8 @@
 #include "plat.h"
 #include "lib.h"
 
-static const char act_names[LA_COUNT][32] = {
-	"Reboot to recovery (TWRP)", "Reboot to Download mode", "Power off"
+static const char act_names[LA_COUNT][40] = {
+	"Reboot to recovery (Scion recovery)", "Reboot to Download mode", "Power off"
 };
 
 static void fmt_u(char *b, unsigned *n, uint64_t v)
@@ -62,6 +62,37 @@ static unsigned wrap(unsigned row, unsigned max, const char *s, uint32_t fg)
 	return used;
 }
 
+/* s from (1, row) with fg on bg, wrapped at the screen's width, continuation lines indented by
+ * indent columns; at most max rows. Returns rows used. */
+static unsigned wrap_bg(unsigned row, unsigned max, const char *s, uint32_t fg, uint32_t bg, unsigned indent)
+{
+	unsigned cols = fb_cols(), used = 0;
+	char buf[128];
+	while (*s && used < max) {
+		unsigned pad = used ? indent : 0, w = cols > 1 + pad ? cols - 1 - pad : 1, k = 0;
+		for (unsigned i = 0; i < pad; i++)
+			buf[k++] = ' ';
+		while (*s && k < pad + w && k + 1 < sizeof(buf))
+			buf[k++] = *s++;
+		buf[k] = 0;
+		fb_text(1, row + used, buf, fg, bg);
+		used++;
+	}
+	return used;
+}
+
+/* A sign of life drawn from a loop count, not from the clock: it turns while the loader polls,
+ * whatever the timer does. */
+static void heartbeat(void)
+{
+	static uint32_t n;
+	static const char spin[4] = { '|', '/', '-', '\\' };
+	if (!fb_ok() || (++n & 0x3fffu))
+		return;
+	char b[2] = { spin[(n >> 14) & 3], 0 };
+	fb_text(fb_cols() - 1, 0, b, FB_WHITE, FB_BLUE);
+}
+
 static void draw_menu(struct ldr *L, unsigned sel, unsigned total, const char *count_line)
 {
 	char b[128];
@@ -73,6 +104,12 @@ static void draw_menu(struct ldr *L, unsigned sel, unsigned total, const char *c
 	fb_text(1, 0, b, FB_WHITE, FB_BLUE);
 	fb_text(1, 1, "Choose what to start", FB_WHITE, FB_BLUE);
 	unsigned row = 3;
+	if (ldr_clock_state()) {
+		const char *cs = ldr_clock_state() == 1 ? "timer: CNTFRQ_EL0 is 0, board rate used" :
+		                                          "timer: the counter does not move, counting loops";
+		row += wrap_bg(row, 2, cs, FB_GREY, FB_DARK, 0);
+		con_line(cs);
+	}
 	if (L->banner[0]) {
 		row += wrap(row, 3, L->banner, FB_AMBER);
 		row++;
@@ -101,14 +138,13 @@ static void draw_menu(struct ldr *L, unsigned sel, unsigned total, const char *c
 		} else {
 			cat(b, sizeof(b), act_names[i - L->n]);
 		}
-		fb_text(1, row++, b, i == sel ? FB_WHITE : FB_GREY,
-		        i == sel ? FB_BLUE : FB_DARK);
+		row += wrap_bg(row, 2, b, i == sel ? FB_WHITE : FB_GREY, i == sel ? FB_BLUE : FB_DARK, 5);
 		con_line(b);
 	}
 	row++;
 	if (sel < L->n && SCION_S2_KIND(L->ent[sel].h->flags) == SCION_S2_KIND_XNU) {
 		fb_text(1, row++, "Command line:", FB_GREY, FB_DARK);
-		row += wrap(row, 8, L->ent[sel].line[0] ? L->ent[sel].line : "(empty)", FB_WHITE);
+		row += wrap(row, 16, L->ent[sel].line[0] ? L->ent[sel].line : "(empty)", FB_WHITE);
 		kputs("line: ");
 		con_line(L->ent[sel].line);
 	}
@@ -117,10 +153,12 @@ static void draw_menu(struct ldr *L, unsigned sel, unsigned total, const char *c
 		row++;
 	}
 	unsigned last = fb_rows() ? fb_rows() - 1 : 0;
-	fb_text(1, last - 2, "Volume Up/Down: move   Power: start", FB_GREY, FB_DARK);
-	fb_text(1, last - 1, "Bixby: edit the command line", FB_GREY, FB_DARK);
+	fb_text(1, last - 4, "Volume Up/Down: move", FB_GREY, FB_DARK);
+	fb_text(1, last - 3, "Power: start", FB_GREY, FB_DARK);
+	fb_text(1, last - 2, "Bixby: edit the line", FB_GREY, FB_DARK);
 	if (count_line && count_line[0]) {
-		fb_text(1, last, count_line, FB_AMBER, FB_DARK);
+		fb_text(1, last - 1, count_line, FB_AMBER, FB_DARK);
+		fb_text(1, last, "(any key stops)", FB_AMBER, FB_DARK);
 		con_line(count_line);
 	}
 }
@@ -134,7 +172,7 @@ static void count_text(char *b, struct ldr *L, unsigned item, uint64_t left_ms)
 	cat(b, 96, " in ");
 	n = strlen(b);
 	fmt_u(b, &n, (left_ms + 999) / 1000);
-	cat(b, 96, " s (any key stops)");
+	cat(b, 96, " s");
 }
 
 static void test_hook(unsigned k)
@@ -164,6 +202,7 @@ int ui_menu(struct ldr *L, unsigned countdown_item, uint32_t countdown_ms, int *
 		count_text(cl, L, countdown_item, countdown_ms);
 	draw_menu(L, m.sel, m.n, cl);
 	for (;;) {
+		heartbeat();
 		unsigned k = key_poll();
 		if (k >= 0x200u) {
 			test_hook(k);
@@ -189,8 +228,8 @@ int ui_menu(struct ldr *L, unsigned countdown_item, uint32_t countdown_ms, int *
 			if (s != shown) {
 				shown = s;
 				count_text(cl, L, countdown_item, deadline - t);
-				fb_fill_rows(fb_rows() - 1, 1, FB_DARK);
-				fb_text(1, fb_rows() - 1, cl, FB_AMBER, FB_DARK);
+				fb_fill_rows(fb_rows() - 2, 1, FB_DARK);
+				fb_text(1, fb_rows() - 2, cl, FB_AMBER, FB_DARK);
 				con_line(cl);
 			}
 		}
@@ -296,6 +335,7 @@ static void edit_keys(struct ldr *L, struct ldr_entry *e)
 		}
 		int r;
 		do {
+			heartbeat();
 			r = menu_feed(&m, key_poll());
 		} while (r == -1 && !m.touched);
 		m.touched = 0;
@@ -336,7 +376,7 @@ int ui_verify_failed(const struct ldr_entry *e, const char *what)
 	fb_fill_rows(0, 3, FB_RED);
 	fb_text(1, 0, "NOT STARTED: CHECK FAILED", FB_WHITE, FB_RED);
 	fb_text(1, 1, e->name, FB_WHITE, FB_RED);
-	fb_text(1, 4, what, FB_WHITE, FB_DARK);
+	wrap_bg(4, 2, what, FB_WHITE, FB_DARK, 0);
 	con_line("==== NOT STARTED: CHECK FAILED ====");
 	kprintf("entry: %s\nreason: %s\n", e->name, what);
 	if (e->state == ES_FAILED && (e->why == SCN2_E_SHA || e->why == SCN2_E_CRC || e->why == SCN2_E_UNPINNED)) {
@@ -344,24 +384,25 @@ int ui_verify_failed(const struct ldr_entry *e, const char *what)
 		b[0] = 0;
 		cat(b, sizeof(b), "expected ");
 		cat(b, sizeof(b), hx);
-		wrap(6, 2, b, FB_GREY);
+		wrap(6, 3, b, FB_GREY);
 		con_line(b);
 		hex_digest(hx, e->digest, 32);
 		b[0] = 0;
 		cat(b, sizeof(b), "computed ");
 		cat(b, sizeof(b), hx);
-		wrap(9, 2, b, FB_GREY);
+		wrap(10, 3, b, FB_GREY);
 		con_line(b);
 	}
-	fb_text(1, 13, "Nothing was started. Rebuild or reflash this", FB_WHITE, FB_DARK);
-	fb_text(1, 14, "BOOT image (docs/phone-test-plan.md).", FB_WHITE, FB_DARK);
+	wrap_bg(14, 3, "Nothing was started. Rebuild or reflash this BOOT image (docs/phone-test-plan.md).",
+	        FB_WHITE, FB_DARK, 0);
 	struct menu_state m = { 2, 0, 0 };
 	for (;;) {
 		fb_text(1, 17, "Back to the menu", m.sel == 0 ? FB_WHITE : FB_GREY, m.sel == 0 ? FB_BLUE : FB_DARK);
-		fb_text(1, 18, "Reboot to recovery (TWRP)", m.sel == 1 ? FB_WHITE : FB_GREY, m.sel == 1 ? FB_BLUE : FB_DARK);
-		con_line("1. Back to the menu\n2. Reboot to recovery (TWRP)");
+		fb_text(1, 18, "Reboot to recovery", m.sel == 1 ? FB_WHITE : FB_GREY, m.sel == 1 ? FB_BLUE : FB_DARK);
+		con_line("1. Back to the menu\n2. Reboot to recovery (Scion recovery)");
 		int r;
 		do {
+			heartbeat();
 			r = menu_feed(&m, key_poll());
 		} while (r == -1 && !m.touched);
 		m.touched = 0;

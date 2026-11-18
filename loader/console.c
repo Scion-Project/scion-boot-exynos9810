@@ -20,10 +20,56 @@ void con_line(const char *s)
 	uart_putc('\n');
 }
 
+/*
+ * Time. On the S9, S-Boot leaves CNTFRQ_EL0 at 0 (scion-kernel's sboot reads the 26 MHz counter for
+ * that reason, xnuloader/sboot/menu.c); the first loader on the phone took that as "no clock", its
+ * countdown never moved and the first key press waited forever. So: the board's known frequency when
+ * CNTFRQ is 0 or not believable, and if the counter itself stands still (never seen, but nothing
+ * else would bound the waits) a clock counted in calls instead, so that every wait still ends.
+ */
+#define LDR_HZ_MIN       1000000ull         /* below 1 MHz or above 1 GHz: not a real counter */
+#define LDR_HZ_MAX       1000000000ull
+#define LDR_STUCK_READS  (1u << 22)          /* the same count this many reads in a row: stopped */
+#define LDR_CALLS_PER_MS 2000u               /* the counted clock: rough, only bounds the waits */
+
+static uint64_t hz_cached;
+static int clock_soft;
+static uint64_t last_ticks, soft_calls, soft_base_ms;
+static uint32_t same_reads;
+
+uint64_t ldr_hz(void)
+{
+	if (!hz_cached) {
+		uint64_t f = plat_freq();
+		hz_cached = (f >= LDR_HZ_MIN && f <= LDR_HZ_MAX) ? f : plat_freq_default();
+		if (!hz_cached)
+			hz_cached = 24000000ull;
+	}
+	return hz_cached;
+}
+
+int ldr_clock_state(void)
+{
+	if (clock_soft)
+		return 2;
+	uint64_t f = plat_freq();
+	return (f >= LDR_HZ_MIN && f <= LDR_HZ_MAX) ? 0 : 1;
+}
+
 uint64_t now_ms(void)
 {
-	uint64_t f = plat_freq();
-	return f ? plat_ticks() / (f / 1000) : 0;
+	if (clock_soft)
+		return soft_base_ms + ++soft_calls / LDR_CALLS_PER_MS;
+	uint64_t t = plat_ticks();
+	uint64_t ms = t / (ldr_hz() / 1000);
+	if (t != last_ticks) {
+		last_ticks = t;
+		same_reads = 0;
+	} else if (++same_reads >= LDR_STUCK_READS) {
+		clock_soft = 1;
+		soft_base_ms = ms;
+	}
+	return ms;
 }
 
 void delay_ms(uint32_t ms)

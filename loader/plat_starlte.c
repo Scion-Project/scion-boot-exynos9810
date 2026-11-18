@@ -7,6 +7,7 @@
  * device tree), re-stated, not copied:
  *   keys       ALIVE GPA0 DAT 0x14050024 (bit 3 Volume Up, 4 Volume Down, 6 Bixby) and GPA2 DAT
  *              0x14050064 (bit 4 Power), active low; read only
+ *   timer      the generic counter (CNTPCT_EL0) at 26 MHz: S-Boot leaves CNTFRQ_EL0 at 0
  *   display    S-Boot's 1440x2960 ARGB framebuffer at 0xcc000000; DECON_F 0x16030000 + 0x70
  *              written 0x1281 so CPU writes reach the panel (left so for XNU, as today)
  *   reboot     PMU 0x14060000: INFORM2 (+0x808) 0x12345678, INFORM3 (+0x80c) 0x12345670 normal /
@@ -36,7 +37,9 @@
 static inline void w32(uint64_t a, uint32_t v) { *(volatile uint32_t *)(uintptr_t)a = v; }
 static inline uint32_t r32(uint64_t a) { return *(volatile uint32_t *)(uintptr_t)a; }
 
-static const struct plat_fb sfb = { 0xcc000000ul, 1440, 2960, 1440 * 4, 4 };
+/* Font scale 5 (40-pixel glyphs); 96 pixels kept clear left and right and 112 at top and bottom for the
+ * panel's rounded corners and curved edges (scale 4 from x = 32 lost the title's first letters). */
+static const struct plat_fb sfb = { 0xcc000000ul, 1440, 2960, 1440 * 4, 5, 96, 112 };
 static const struct plat_map smap = {
 	0x80000000ul, 0x100000000ul, 0x80000000ul, 0x8c000000ul, 0x880000000ul, 0x900000000ul
 };
@@ -97,13 +100,17 @@ uint64_t plat_freq(void)
 	return v;
 }
 
+/* S-Boot leaves CNTFRQ_EL0 at 0; the counter runs at 26 MHz (scion-kernel xnuloader/sboot/menu.c,
+ * whose menu and countdown run on this phone with that value). */
+uint64_t plat_freq_default(void) { return 26000000ull; }
+
 void plat_reboot(enum plat_reboot why)
 {
 	if (why == PR_POWEROFF) {
 		w32(PMU + 0x330c, r32(PMU + 0x330c) & ~0x100u);
 		__asm__ volatile("dsb sy" ::: "memory");
 		/* With a cable in the PMIC keeps the phone on: fall through to a normal reset. */
-		for (uint64_t t = plat_ticks() + plat_freq() * 3; plat_ticks() < t;)
+		for (uint64_t t = plat_ticks() + ldr_hz() * 3; plat_ticks() < t;)
 			;
 		why = PR_NORMAL;
 	}

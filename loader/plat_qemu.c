@@ -25,7 +25,7 @@
 static inline void w32(uint64_t a, uint32_t v) { *(volatile uint32_t *)(uintptr_t)a = v; }
 static inline uint32_t r32(uint64_t a) { return *(volatile uint32_t *)(uintptr_t)a; }
 
-static const struct plat_fb qfb = { 0x5e000000ul, 640, 480, 640 * 4, 1 };
+static const struct plat_fb qfb = { 0x5e000000ul, 640, 480, 640 * 4, 1, 0, 0 };
 static const struct plat_map qmap = { 0x40000000ul, 0xc0000000ul, 0x40000000ul, 0x48000000ul, 0, 0 };
 static const struct xnu_window qwin[1] = { { 0x60000000ul, 0x80000000ul } };
 
@@ -85,8 +85,13 @@ uint64_t plat_freq(void)
 {
 	uint64_t v;
 	__asm__ volatile("mrs %0, cntfrq_el0" : "=r"(v));
+#ifdef LDR_TEST_CNTFRQ0
+	v = 0;   /* qemu-test's cntfrq0 build: CNTFRQ_EL0 as the S9's S-Boot leaves it */
+#endif
 	return v;
 }
+
+uint64_t plat_freq_default(void) { return 62500000ull; }   /* QEMU virt's counter */
 
 static void psci(uint64_t fn) __attribute__((noreturn));
 static void psci(uint64_t fn)
@@ -110,7 +115,7 @@ static uint64_t wdt_ticks;
 
 int plat_wdt_start(uint32_t ms)
 {
-	wdt_ticks = plat_freq() / 1000 * ms;
+	wdt_ticks = ldr_hz() / 1000 * ms;
 	w32(GICD + 0x000, 1);                                 /* distributor on */
 	w32(GICD + 0x100, 1u << VTIMER_IRQ);                  /* ISENABLER0 */
 	*(volatile uint8_t *)(uintptr_t)(GICD + 0x400 + VTIMER_IRQ) = 0x80;

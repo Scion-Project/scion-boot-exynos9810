@@ -62,6 +62,7 @@ void con_line(const char *s);            /* UART and nothing else */
 unsigned key_poll(void);                 /* MK_* or MK_NONE, never blocks */
 void delay_ms(uint32_t ms);
 uint64_t now_ms(void);
+int ldr_clock_state(void);           /* 0 CNTFRQ used, 1 the board's frequency (CNTFRQ 0), 2 counted */
 void hex_digest(char *out, const uint8_t *d, unsigned bytes);
 void key_init(void);
 int key_from_uart(void);            /* the last key came from the UART */

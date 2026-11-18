@@ -19,6 +19,7 @@ struct plat_fb {
 	uint64_t base;
 	uint32_t width, height, stride;   /* stride in bytes, 32 bpp */
 	uint32_t scale;                   /* font scale: 8x8 glyphs drawn scale x scale */
+	uint32_t inset_x, inset_y;        /* pixels kept clear at each side (a panel's rounded corners) */
 };
 
 struct plat_map {        /* the loader's identity map (mmu.c), 2 MiB granularity */
@@ -42,7 +43,11 @@ void plat_image_area(uint64_t *lo, uint64_t *hi);
 /* The boot-loop guard's retained RAM (32 bytes), or 0 when the board has none. */
 volatile struct scion_guard_rec *plat_guard_slot(void);
 uint64_t plat_ticks(void);
-uint64_t plat_freq(void);
+uint64_t plat_freq(void);             /* CNTFRQ_EL0 as found: may be 0 (S-Boot leaves it 0 on the S9) */
+uint64_t plat_freq_default(void);     /* the counter's real frequency when plat_freq() is 0 */
+/* The frequency the loader uses (console.c): plat_freq(), or plat_freq_default() when that is 0 or
+ * not believable. Every wait in the loader goes through it. */
+uint64_t ldr_hz(void);
 void plat_reboot(enum plat_reboot why) __attribute__((noreturn));
 /* The loader's own watchdog: a hang inside the loader resets the board. 0 when absent. */
 int plat_wdt_start(uint32_t ms);
