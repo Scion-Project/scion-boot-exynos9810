@@ -81,3 +81,10 @@ clean:
 	rm -rf build
 
 .PHONY: all qemu qemu-el3 clean
+
+# make host-test: the second-stage loader's plain-C parts (SCN2, CRC32/SHA-256, guard, command
+# line, SWEETXNU plan) on the host, with ASan/UBSan: tools/host-test.sh
+host-test:
+	sh tools/host-test.sh
+
+.PHONY: host-test
