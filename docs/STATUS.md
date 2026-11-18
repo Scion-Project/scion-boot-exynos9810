@@ -132,11 +132,11 @@ the UART, counts a strike, and reboots to recovery on a key or after 60 s.
 
 **Re-entry** (`include/boot.h` `struct scion_reentry`, [handoff-contract.md](handoff-contract.md)).
 Base + 0x40 is a second entry point: a running OS that put BOOT's kernel slot back where S-Boot had
-it (XNU reuses that RAM) jumps there at EL1 with the MMU off and `x0` = a 696-byte record (reason,
+it (XNU reuses that RAM) jumps there at EL1 with the MMU off and `x0` = a 728-byte record (reason,
 flags, which entry, an optional new line, an FDT, a watchdog it left armed). The loader re-checks the
 SHA-256 of whatever it starts, so a bad copy is refused like a damaged BOOT. Agreed with
 scion-kernel's warm-restart work (`docs/ios27/WARM-RESTART.md` there); a cold boot whose line has
-`sweetwarm=` keeps S-Boot's FDT at `0x91000000` for it.
+`sweetwarm=` keeps S-Boot's FDT at `0x91100000` for it (a 4 KiB header, then the FDT).
 
 ### Superset, not regression
 

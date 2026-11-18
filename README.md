@@ -25,6 +25,23 @@ To ensure the bootloader **can never damage or brick the phone**, Stage 1 enforc
 - **Automatic 3-strike boot-loop guard** in `PMU_INFORM1` (`0x14060804`) paired with a fail-safe watchdog timer.
 - **Automatic `usbdl` (`04e8:1234` DNW) fallback** on any fatal exception, DRAM init error, or Stage-2 verification failure, compatible with [halal-beef/hubble](https://github.com/halal-beef/hubble) and [halal-beef/houston-pub](https://github.com/halal-beef/houston-pub).
 
+## The second-stage loader (`loader/`)
+
+A separate program from stage 1: the EL1 loader that Samsung's S-Boot starts from the S9's BOOT
+partition, after Samsung's own signed chain. It checks the SHA-256 of every image appended to it
+before starting one (with a red error screen instead of a silent hang), shows a menu (iOS 27,
+iOS 16.5, recovery, Download, power off) with a command-line editor, keeps a 3-strike boot-loop
+guard and a crash screen, and has a re-entry point for a warm restart. Design and status:
+[`docs/STATUS.md`](docs/STATUS.md); hand-off contracts: [`docs/handoff-contract.md`](docs/handoff-contract.md);
+first runs on a phone: [`docs/phone-test-plan.md`](docs/phone-test-plan.md). **Not yet run on a phone.**
+
+```sh
+make PLATFORM=starlte loader     # build/starlte/scion-loader.bin
+make host-test                   # its plain-C parts on the host (ASan/UBSan)
+make qemu-test                   # 13 scenarios on QEMU virt at EL1
+tools/mkloaderimg.py --help      # append payloads (SCN2 records) to the loader
+```
+
 ## Layout
 
 ```

@@ -47,3 +47,43 @@ lives in stage 2.
 3. Secondary cores come up via PSCI `CPU_ON` and park in the spin-table.
 4. `scion_boot_info` validates (magic, version, non-zero mem map).
 5. Control reaches a stage-2 stub that prints `x0->magic` back out the UART.
+
+## The second-stage loader (`loader/`)
+
+The loader that S-Boot starts from BOOT (docs/STATUS.md) has two contracts of its own; both are
+defined in [`include/boot.h`](../include/boot.h).
+
+### Starting an OS
+
+| Thing           | XNU entry (`kind xnu`)                              | Image entry (`kind image`)            |
+|-----------------|-----------------------------------------------------|---------------------------------------|
+| Exception level | EL1 (S-Boot's)                                      | EL1                                   |
+| `x0`            | `boot_args` (Revision 2, Version 2), as sboot does  | S-Boot's FDT (cold) or `fdt_pa` (re-entry), else 0 |
+| `x1`-`x3`       | 0                                                   | 0                                     |
+| MMU, caches     | off; whole D-cache cleaned + invalidated by set/way; I-cache and TLB invalidated | same |
+| Interrupts      | masked; the loader's own watchdog stopped           | same                                  |
+| Display         | S-Boot's framebuffer, DECON trigger free-running    | same                                  |
+| Integrity       | CRC32 + SHA-256 of the record checked (and pinned digests, if built with them) | same |
+
+The command line is the payload's own, as edited in the menu, plus `scion_ldr=<base>,<size>` and
+`scion_guard=<pa>` when there is room.
+
+### Re-entering the loader
+
+Base + 0x40 is the re-entry point; +0x44 holds `"SCNR"` and +0x48 the record version (1), which
+the OS checks before it jumps. The OS side is scion-kernel's warm restart
+(`docs/ios27/WARM-RESTART.md` there); the two sides share `struct scion_reentry` (728 bytes).
+
+| Thing     | Guarantee at re-entry |
+|-----------|-----------------------|
+| EL, MMU   | EL1, MMU and D-cache off, everything the loader reads cleaned to PoC, I-cache invalidated |
+| CPUs, IRQ | the boot CPU only (others PSCI `CPU_OFF`), DAIF masked, its GIC CPU interface off |
+| `x0`      | the record (8-byte aligned, outside the kernel slot and the OS RAM the loader will fill); `x1`-`x3` 0 |
+| RAM       | BOOT's kernel slot put back where S-Boot had it (`SCION_RE_RESTAGED`): XNU reuses that RAM, so the OS reads it again from the BOOT partition |
+| Watchdog  | if `SCION_RE_WDT_ARMED`: the loader pets the cluster-1 WDT while it runs and stops it before the next OS, unless `SCION_RE_WDT_KEEP` |
+| FDT       | `fdt_pa`, normally the copy a cold boot kept at `SCION_FDT_SAVE_*` + 0x1000 (lines with `sweetwarm=`) |
+
+The loader trusts nothing it finds in RAM: it validates the record (magic, version, size, CRC32,
+terminated line) and checks the SHA-256 of whatever entry it starts. An invalid record means a cold
+start without an FDT. A re-entry for a panic or a watchdog counts as a boot-loop strike and is not
+started directly once the guard has tripped.
