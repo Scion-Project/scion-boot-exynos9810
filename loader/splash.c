@@ -2,10 +2,13 @@
  * The Scion boot splash. Drawn by the loader as the last thing before an XNU entry starts, so the
  * panel shows it while the kernel boots (the kernel's framebuffer console stays quiet unless -v).
  *
- * The art is original and drawn in code: a dark vertical gradient, an outer ring (the orbit), a
- * thin inner ring and a core disc. The core ignites in four steps (about 30 ms): only the core's
- * square is repainted per step, so the animation costs almost nothing. No text, no bitmaps, no
- * third-party artwork. Integer maths only (no floating point, no tables with pointers).
+ * The art is original and drawn in code: a dark vertical gradient over the WHOLE panel (the panel's
+ * own width, height and stride from plat_fb(), never a fixed size), and centred on it an outer ring
+ * (the orbit), a thin inner ring and a core disc; the mark is about 46% of the panel's width. The
+ * background is one full fill (a colour per row, 64-bit stores); the per-pixel art is only drawn
+ * inside the mark's bounding box. The core ignites in four steps (about 30 ms): only the core's
+ * square is repainted per step. Everything costs a few tens of ms on the panel. No text, no bitmaps,
+ * no third-party artwork. Integer maths only (no floating point, no tables with pointers).
  *
  * Easter eggs (all observers: the menu's keys are passed on unchanged):
  *   gold     Volume Up, Up, Volume Down, Down, Bixby  (in the menu, any time before the start)
@@ -52,7 +55,7 @@ static const char *name_of(unsigned v)
 	}
 }
 
-/* Geometry, in pixels, from the panel's size: the mark sits a little above the centre. */
+/* Geometry, in pixels, from the panel's size: the mark is centred, its orbit about 46% of the width. */
 struct geom {
 	int32_t cx, cy, r, r_out2, r2, r2_out2, rc, rc2;
 	int32_t ring_w, ring2_w;
@@ -63,19 +66,19 @@ static uint32_t min32(uint32_t a, uint32_t b) { return a < b ? a : b; }
 static struct geom geometry(uint32_t w, uint32_t h)
 {
 	struct geom g;
-	uint32_t R = min32(w, h) * 22u / 100u;
+	uint32_t R = min32(w, h) * 23u / 100u;
 	int32_t rw = (int32_t)(R / 9u);
 	if (rw < 2)
 		rw = 2;
 	g.cx = (int32_t)(w / 2u);
-	g.cy = (int32_t)(h * 42u / 100u);
+	g.cy = (int32_t)(h / 2u);
 	g.r = (int32_t)R;
 	g.ring_w = rw;
 	g.r_out2 = (int32_t)(R + (uint32_t)rw) * (int32_t)(R + (uint32_t)rw);
-	g.r2 = (int32_t)(R * 62u / 100u);
+	g.r2 = (int32_t)(R * 78u / 100u);
 	g.ring2_w = rw / 3 > 1 ? rw / 3 : 1;
 	g.r2_out2 = (g.r2 + g.ring2_w) * (g.r2 + g.ring2_w);
-	g.rc = (int32_t)(R * 28u / 100u);
+	g.rc = (int32_t)(R * 55u / 100u);
 	g.rc2 = g.rc * g.rc;
 	return g;
 }
@@ -227,6 +230,22 @@ static void paint_rect(const struct plat_fb *f, const struct pal *p, const struc
 	}
 }
 
+/* The whole panel (width x height pixels of every row) in each row's background colour: one fill,
+ * 64-bit stores, one colour computation per row. */
+static void fill_background(const struct plat_fb *f, const struct pal *p)
+{
+	for (uint32_t y = 0; y < f->height; y++) {
+		volatile uint64_t *line = (volatile uint64_t *)(uintptr_t)(f->base + (uint64_t)y * f->stride);
+		uint32_t bg = row_bg(p, y, f->height);
+		uint64_t two = (uint64_t)bg | ((uint64_t)bg << 32);
+		uint32_t pairs = f->width / 2u;
+		for (uint32_t x = 0; x < pairs; x++)
+			line[x] = two;
+		if (f->width & 1u)
+			((volatile uint32_t *)line)[f->width - 1u] = bg;
+	}
+}
+
 static void fmt_dim(char *b, unsigned *n, uint32_t v)
 {
 	char d[12];
@@ -251,13 +270,22 @@ void splash_handoff(void)
 	uint32_t P = (uint32_t)g.rc + 2u;
 	uint32_t x0 = (uint32_t)(g.cx - (int32_t)P), x1 = (uint32_t)(g.cx + (int32_t)P);
 	uint32_t y0 = (uint32_t)(g.cy - (int32_t)P), y1 = (uint32_t)(g.cy + (int32_t)P);
-	paint_rect(f, p, &g, 0, 0, f->width, f->height, 0);
+	/* The rectangle around the whole mark (the orbit and its width), clipped to the panel. */
+	uint32_t M = (uint32_t)g.r + (uint32_t)g.ring_w + 2u;
+	uint32_t ax0 = (uint32_t)g.cx > M ? (uint32_t)g.cx - M : 0u;
+	uint32_t ay0 = (uint32_t)g.cy > M ? (uint32_t)g.cy - M : 0u;
+	uint32_t ax1 = min32((uint32_t)g.cx + M, f->width), ay1 = min32((uint32_t)g.cy + M, f->height);
+	fill_background(f, p);                              /* clears everything S-Boot left behind */
+	paint_rect(f, p, &g, ax0, ay0, ax1, ay1, 0);        /* the rings, no core yet */
 	static const uint32_t steps[4] = { 64, 128, 192, 256 };
 	for (unsigned s = 0; s < 4; s++) {
 		paint_rect(f, p, &g, x0, y0, x1, y1, steps[s]);
 		if (s < 3)
 			delay_ms(SPLASH_FRAME_MS);
 	}
+#if defined(__aarch64__)
+	__asm__ volatile("dsb sy" ::: "memory");            /* every store has left the core before the jump */
+#endif
 	kputs("splash: ");
 	kputs(name_of(v));
 	kputs(", ");
