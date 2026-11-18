@@ -19,6 +19,8 @@ Scenarios (each: what is appended to the loader, keys typed, lines that must app
   guard-safe      3 strikes: the known-good entry is started
   guard-recovery  4 strikes, known-good already tried: reboot to recovery
   watchdog        a hung loader (test key H) is reset by its watchdog, strike counted
+  cntfrq0         CNTFRQ_EL0 read as 0 (as the S9's S-Boot leaves it): the countdown ends, iOS 27 starts
+  cntfrq0-keys    the same build: keys move the highlight and choose (the first phone run froze here)
   crash           a fault in the loader (test key X) prints the crash dump, then recovery
   reentry         the OS re-enters the loader at base+0x40 (struct scion_reentry) and asks for
                   entry 2: the loader re-verifies it, stops the watchdog the OS says it left
@@ -135,6 +137,26 @@ def scenarios(d):
         r.expect(r"FAKEXNU: PASS boot_args")
     s["autoboot"] = (plain, two, [], autoboot)
 
+    # The S9's S-Boot leaves CNTFRQ_EL0 at 0: the countdown must still end, and a key press must
+    # still be read (the first phone run froze on both).
+    def cntfrq0(r):
+        r.expect(r"timer: CNTFRQ_EL0 is 0, board rate used")
+        r.expect(r"autoboot: iOS 27 in 1 s")
+        r.expect(r"verify iOS 27: verified")
+        r.expect(r"FAKEXNU: line=-v serial=3 test=ios27 scion_ldr=")
+        r.expect(r"FAKEXNU: PASS boot_args")
+    s["cntfrq0"] = (os.path.join(d, "cntfrq0"), two, [], cntfrq0)
+
+    def cntfrq0_keys(r):
+        r.expect(r"autoboot: iOS 27 in")
+        r.send("j")                           # down: the countdown stops, the menu waits
+        r.expect(r"> 2\. Starbite")
+        r.send("j")
+        r.expect(r"> 3\. Reboot to recovery")
+        r.send("\r")
+        r.expect(r"reboot: recovery")
+    s["cntfrq0-keys"] = (os.path.join(d, "cntfrq0"), two, [], cntfrq0_keys)
+
     def menu_chain(r):
         r.expect(r"autoboot: iOS 27 in")
         r.send("2")
@@ -199,7 +221,7 @@ def scenarios(d):
     def guard_recovery(r):
         r.expect(r"guard: 4 unacknowledged start\(s\), plan 2")
         r.expect(r"!! Boot-loop guard: nothing left to try")
-        r.expect(r"autoboot: Reboot to recovery \(TWRP\) in")
+        r.expect(r"autoboot: Reboot to recovery \(Scion recovery\) in")
         r.expect(r"reboot: recovery")
     s["guard-recovery"] = (plain, with_safe, [("guard", 4, 1)], guard_recovery)
 
