@@ -24,7 +24,7 @@ SECTIONS
 	.bss (NOLOAD) : { *(.bss .bss.*) *(COMMON) }
 	. = ALIGN(16);
 	__bss_end = .;
-	. = . + 0x4000;
+	. = . + 0x3000;       /* 12 KiB: the splash grew the image past the 0x12000 the SCN2 record sits at */
 	__stack_top = .;
 	. = ALIGN(4096);
 	_image_end = .;

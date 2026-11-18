@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: MIT-0
  * The Scion boot splash (loader/splash.c): the one frame the loader leaves on the panel before it
- * starts an XNU entry. Original code-drawn art; no text; no third-party artwork.
+ * starts an XNU entry. Original code-drawn art (a mark, the "SCION" wordmark from vector strokes,
+ * a progress hairline); no font, no bitmap, no third-party artwork.
  */
 #ifndef SCION_SPLASH_H
 #define SCION_SPLASH_H
@@ -17,11 +18,28 @@ enum splash_variant {
 	SPL_COUNT
 };
 
-/* The colour of the core disc in the default variant (the centre pixel of a default splash). */
-#define SPLASH_DEFAULT_CORE 0xffe6edf3u
+/* The colour of the core disc at its centre in the default variant (the centre pixel of a default
+ * splash). */
+#define SPLASH_DEFAULT_CORE 0xfff4f8ffu
 
-/* Pure: the colour of pixel (x, y) of a w x h splash in variant v with the core disc scaled to
- * core_k / 256 of its radius (0 = no core). Host-testable. */
+/* The mark is centred at this fraction (per mille) of the panel's height, a little above the middle,
+ * so the wordmark fits beneath it. */
+#define SPLASH_CY_PERMILLE 455
+
+/* Where the art is on a w x h panel (pixels): the mark's centre, orbit radius and core radius, the
+ * wordmark's centre line and cap height and the x of the I's stem, the hairline's left end, length
+ * and row, and the satellite's centre. For tests. */
+struct splash_geom {
+	int32_t cx, cy, R, rc;
+	int32_t text_y, i_x, text_h;
+	int32_t hair_x0, hair_len, hair_y;
+	int32_t sat_x, sat_y;
+};
+void splash_geometry(uint32_t w, uint32_t h, struct splash_geom *out);
+
+/* Pure: the colour of pixel (x, y) of a w x h splash in variant v at ignition core_k / 256: the core
+ * disc's radius, the wordmark's opacity and the hairline's progress (0 = no core, no text, an empty
+ * track; 256 = the finished splash). Host-testable. */
 uint32_t splash_pixel(unsigned v, uint32_t w, uint32_t h, uint32_t x, uint32_t y, uint32_t core_k);
 
 /* Pure: the variant a loader built on the __DATE__ string d ("Mmm dd yyyy") gets. */
@@ -37,7 +55,7 @@ void splash_held(unsigned plat_keys, uint64_t now_ms);
 /* Easter egg at power-on: Bixby held when the loader starts an entry adds -v to its line. */
 int splash_verbose_held(unsigned plat_keys);
 
-/* Paint the splash (with its short ignition: four frames) on the framebuffer, if there is one.
+/* Paint the splash (with its short ignition: four frames, the core growing, the wordmark fading in and the hairline advancing) on the framebuffer, if there is one.
  * Returns at once with no framebuffer. Prints one UART line. */
 void splash_handoff(void);
 
