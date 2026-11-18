@@ -8,6 +8,7 @@
 #include "fbcon.h"
 #include "plat.h"
 #include "lib.h"
+#include "splash.h"
 
 static const char act_names[LA_COUNT][40] = {
 	"Reboot to recovery (Scion recovery)", "Reboot to Download mode", "Power off"
@@ -204,6 +205,7 @@ int ui_menu(struct ldr *L, unsigned countdown_item, uint32_t countdown_ms, int *
 	for (;;) {
 		heartbeat();
 		unsigned k = key_poll();
+		splash_held(plat_keys(), now_ms());   /* easter eggs only observe */
 		if (k >= 0x200u) {
 			test_hook(k);
 			continue;
@@ -211,6 +213,7 @@ int ui_menu(struct ldr *L, unsigned countdown_item, uint32_t countdown_ms, int *
 		if (k != MK_NONE) {
 			*user = 1;
 			deadline = 0;
+			splash_key(k);
 			int r = menu_feed(&m, k);
 			if (r >= 0)
 				return r;
